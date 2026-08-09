@@ -115,7 +115,10 @@ def main() -> int:
     abstentions = [i for i, s in scenarios.items() if not s["must_cite"]]
     print(f"\nAbstention items         : {len(abstentions)} ({', '.join(sorted(abstentions))})")
     if empty_citations:
-        print(f"    cited something anyway: {', '.join(empty_citations)}")
+        # Not a failure on its own: citing the passages consulted to establish
+        # that the corpus is silent is reasonable. Read the answer — the failure
+        # would be answering the question.
+        print(f"    also returned citations: {', '.join(empty_citations)} (check the answer declines)")
 
     print(f"\nPath taken               : {dict(by_path)}")
     print(
