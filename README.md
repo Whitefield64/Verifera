@@ -7,6 +7,12 @@ original PDF, or the highlighted span in the original HTML.
 A reference implementation, not a library: clone it, swap the domain pack,
 point it at your documents. The demo corpus is EU AI regulation.
 
+![Answer with verified citations next to the Official Journal PDF, with the cited recital highlighted](docs/images/citation-highlight.png)
+
+*Clicking a citation opens the original Official Journal PDF and highlights the
+exact passage the claim came from. Green chips passed quote verification against
+the stored source text; amber ones did not.*
+
 ## Why this exists
 
 Most RAG demos answer with a footnote listing which document they used. That is
@@ -115,7 +121,22 @@ python3 benchmark/run.py --backend-url http://localhost:8000/api/chat
 python3 benchmark/report.py benchmark/results/<file>.json
 ```
 
-Measured numbers, with the date and commit they were taken at, are in
+First measured run — 40 scenarios, 16 documents, 2026-08-09:
+
+| | |
+|---|---|
+| Content | 31 complete · 5 partial · 4 wrong |
+| Quotes verified against source | 204 / 216 (94%) |
+| `must_cite` satisfied | 36 / 38 |
+| Routing vs `expected_path` | 30 / 40 |
+| Latency | median 8.1 s, max 81.7 s |
+
+Split by the path each question actually took, the agent path answered **20 of
+20 completely**, and every failure in the run is on the retrieval path — and
+every one of those is a *retrieval* failure, not a generation failure: the fact
+is in the corpus and the answer was faithful to the extracts it was given.
+Nothing has been tuned in response yet; these are baseline numbers with the
+diagnosis written down. Full review in
 [docs/evaluation.md](docs/evaluation.md).
 
 Scenarios are never edited to make transcripts look better. A benchmark that

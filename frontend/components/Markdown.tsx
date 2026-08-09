@@ -31,13 +31,22 @@ const components: Components = {
   td: ({ children }) => <td className="border border-neutral-200 px-2 py-1">{children}</td>,
 };
 
-/** Rendering markdown per le risposte dell'assistente: paragrafi, elenchi e tabelle
- *  (dati tecnici/tabellari sono il caso d'uso principale — schede prodotto, SDS). */
+/**
+ * Markdown inside a table cell cannot hold a line break, so models reach for a
+ * literal <br>. Raw HTML is not rendered here — deliberately, since the text
+ * comes from a model — so those tags would otherwise reach the reader as
+ * visible "<br>". Turning them into spaces keeps the cell readable without
+ * opening a path for arbitrary markup into the DOM.
+ */
+const HTML_LINE_BREAK = /<br\s*\/?>/gi;
+
+/** Assistant answers: paragraphs, lists and tables. Tabular data is a primary
+ *  case — obligation matrices, deadlines, penalty tiers. */
 export default function Markdown({ text }: { text: string }) {
   return (
     <div className="whitespace-normal leading-relaxed [&_pre]:overflow-x-auto">
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
-        {text}
+        {text.replace(HTML_LINE_BREAK, " ")}
       </ReactMarkdown>
     </div>
   );
