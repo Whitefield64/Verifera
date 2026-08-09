@@ -1,0 +1,6 @@
+# Document parsing: heavy (torch, transformers, OpenCV) and needed only by
+# `python -m ingestion` and `python -m corpus`, never by the API process.
+-r requirements.txt
+docling==2.110.0
+easyocr==1.7.2
+beautifulsoup4==4.15.0

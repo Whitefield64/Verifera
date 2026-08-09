@@ -1,0 +1,55 @@
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+
+# Operating systems
+.DS_Store
+Thumbs.db
+
+# Editors and IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# JavaScript / TypeScript
+node_modules/
+.next/
+dist/
+build/
+coverage/
+
+# Logs, caches and temporary files
+*.log
+logs/
+.cache/
+tmp/
+temp/
+
+# AI coding tools (local-only configuration)
+.claude/
+CLAUDE.md
+.codex/
+.agents/
+AGENTS.md
+
+# Corpus artifacts — all regenerable with `python -m corpus sync` + `python -m ingestion ingest`.
+# data/manifest.json IS tracked: it is the corpus map, and the checksums make ingestion auditable.
+data/raw/
+data/objects/
+data/workspace/

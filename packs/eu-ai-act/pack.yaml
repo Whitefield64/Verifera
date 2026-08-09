@@ -1,0 +1,39 @@
+# Domain pack: everything vertical-specific lives here as data, never as code.
+# Point PACK_DIR at a different directory to retarget the whole system.
+
+name: eu-ai-act
+title: EU AI Regulation Assistant
+description: >-
+  Grounded question answering over the EU AI Act and the acts, guidelines and
+  frameworks around it. Every claim points back to the exact passage in the
+  original document.
+
+# Language the assistant presents itself in. Answers always follow the language
+# of the question — this only drives the UI and the ingestion-time summaries.
+locale: en
+
+ui:
+  heading: EU AI Regulation Assistant
+  tagline: Ask about the AI Act — every answer cites the passage it came from.
+  placeholder: Ask a question…
+  # Seeded into the empty chat. Keep them answerable from the corpus.
+  suggestions:
+    - When do the prohibitions in Article 5 of the AI Act start to apply?
+    - Compare the obligations of a provider and a deployer of a high-risk AI system.
+    - What are the penalty tiers for non-compliance, and what determines which applies?
+
+# Fixed replies the system emits in its own voice, in the pack's locale.
+messages:
+  no_context: >-
+    The available documentation does not contain information to answer this
+    question.
+  agent_failed: >-
+    The in-depth path did not complete; falling back to a quick search.
+
+# Topic labels used to classify evaluation scenarios. benchmark/run.py validates
+# every scenario's `domain` against this list.
+domains:
+  - scope          # what counts as an AI system, who is covered, exclusions
+  - obligations    # duties by role and risk class
+  - governance     # authorities, conformity assessment, registration, oversight
+  - penalties      # enforcement, fines, timelines

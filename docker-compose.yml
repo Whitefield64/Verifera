@@ -1,0 +1,69 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: knowledge_base
+    ports:
+      - "5433:5432"  # 5432 is often already taken by a local Postgres
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d knowledge_base"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  api:
+    build:
+      context: backend
+      target: api
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/knowledge_base
+      PACK_DIR: /packs/eu-ai-act
+      OBJECTS_DIR: /data/objects
+      WORKSPACE_DIR: /data/workspace
+      MANIFEST_PATH: /data/manifest.json
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./packs:/packs:ro
+      - ./data/objects:/data/objects
+      - ./data/workspace:/data/workspace
+      - ./data/manifest.json:/data/manifest.json:ro
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # Document parsing, on demand rather than always-on: this image carries torch
+  # and OpenCV, which the API does not need.
+  #   docker compose run --rm ingest python -m corpus sync
+  #   docker compose run --rm ingest python -m ingestion ingest
+  ingest:
+    profiles: ["ingest"]
+    build:
+      context: backend
+      target: ingest
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/knowledge_base
+      PACK_DIR: /packs/eu-ai-act
+      RAW_DIR: /data/raw
+      OBJECTS_DIR: /data/objects
+      WORKSPACE_DIR: /data/workspace
+      MANIFEST_PATH: /data/manifest.json
+    volumes:
+      - ./packs:/packs:ro
+      - ./data:/data
+      - model-cache:/root/.cache
+      - easyocr-cache:/root/.EasyOCR
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  db-data:
+  model-cache:
+  easyocr-cache:

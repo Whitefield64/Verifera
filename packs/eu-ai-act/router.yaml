@@ -1,0 +1,48 @@
+# Strong routing signals. They short-circuit the LLM classifier, in order:
+# the first pattern that matches wins, anything unmatched falls through to
+# prompts/router.md.
+#
+# Patterns cover English and Italian because EU legal corpora get consulted in
+# both. They are matched case-insensitively against the condensed query.
+#
+# Write patterns as literal blocks (`|-`) and break lines only at `|`
+# alternation boundaries: the loader joins the lines by stripping the newline
+# and its surrounding indentation, so a break in the middle of a phrase would
+# eat the space it needs.
+#
+# These are empirical, not principled: the honest way to tune them is against
+# the evaluation set (`expected_path` in benchmark.jsonl), not by intuition.
+
+signals:
+  # Explicit comparisons and "which one" choices always need more than one
+  # document, whatever the classifier thinks.
+  - name: comparison
+    path: agent
+    escalate: false
+    pattern: |-
+      \b(compare|comparison|difference between|differs?\s+from|versus|vs\.?
+      |which of the (two|three)|instead of|rather than
+      |confront\w+|differenz\w+|si differenzia|quale dei due)\b
+
+  # Multi-step planning and "what do I actually have to do" questions: the
+  # answer is assembled, never quoted from one place.
+  - name: planning
+    path: agent
+    escalate: false
+    pattern: |-
+      \b(roadmap|action plan|implementation plan|compliance plan|checklist
+      |step[-\s]by[-\s]step|what (do|must) (i|we) (need to )?do
+      |how do (i|we) comply
+      |piano operativo|piano di conformit\w*|come mi adeguo|cosa devo fare)\b
+
+  # Annex tables, penalty tiers and conformity-assessment routes: the class of
+  # query where picking the wrong row silently produces a confident wrong
+  # answer, so it also escalates to the larger model.
+  - name: structured_lookup
+    path: agent
+    escalate: true
+    pattern: |-
+      \b(annex(es)?\s*[ivx\d]+|allegat[oi]\s*[ivx\d]+
+      |penalt(y|ies)|administrative fines?|sanzion\w+|ammend\w+
+      |conformity assessment|valutazione della conformit\w*
+      |obligation matri(x|ces)|penalty tier\w*|risk (class|categor|tier)\w*)\b
