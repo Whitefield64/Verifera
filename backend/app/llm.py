@@ -1,15 +1,22 @@
-"""Thin wrapper around the OpenAI API (embeddings + chat).
+"""Provider layer: chat models and embeddings.
 
-Callers pass the model explicitly or fall back to settings.chat_model, so
-utility calls (routing, condensing) can run on a cheaper model than answers.
+Chat goes through LangChain, so the graph, the router and the ingestion
+summariser share one interface and structured output does not depend on a
+single vendor's JSON-schema extension.
+
+Embeddings stay on the OpenAI client. They are batched and token-truncated
+against an index whose width is fixed at schema-creation time; wrapping that in
+another abstraction buys nothing and risks the index.
 """
 
 import json
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from functools import lru_cache
 from typing import Any
 
 import tiktoken
+from langchain_openai import ChatOpenAI
 from openai import OpenAI
 
 from app.config import settings
@@ -25,6 +32,23 @@ def client() -> OpenAI:
     if _client is None:
         _client = OpenAI(api_key=settings.openai_api_key, timeout=60.0)
     return _client
+
+
+@lru_cache(maxsize=8)
+def chat_model(model: str | None = None) -> ChatOpenAI:
+    return ChatOpenAI(
+        model=model or settings.chat_model,
+        api_key=settings.openai_api_key,
+        timeout=60.0,
+        max_retries=2,
+    )
+
+
+def _json_format(schema_name: str, schema: dict) -> dict:
+    return {
+        "type": "json_schema",
+        "json_schema": {"name": schema_name, "strict": True, "schema": schema},
+    }
 
 
 def _with_retry(call: Callable[[], Any], attempts: int = 3) -> Any:
@@ -60,13 +84,8 @@ def embed(texts: list[str], batch_size: int = 96) -> list[list[float]]:
 def complete_text(
     system: str, messages: list[dict[str, str]], model: str | None = None
 ) -> str:
-    response = _with_retry(
-        lambda: client().chat.completions.create(
-            model=model or settings.chat_model,
-            messages=[{"role": "system", "content": system}, *messages],
-        )
-    )
-    return (response.choices[0].message.content or "").strip()
+    response = chat_model(model).invoke([{"role": "system", "content": system}, *messages])
+    return (text_of(response) or "").strip()
 
 
 def complete_json(
@@ -76,34 +95,41 @@ def complete_json(
     schema: dict,
     model: str | None = None,
 ) -> dict:
-    response = _with_retry(
-        lambda: client().chat.completions.create(
-            model=model or settings.chat_model,
-            messages=[{"role": "system", "content": system}, *messages],
-            response_format={
-                "type": "json_schema",
-                "json_schema": {"name": schema_name, "strict": True, "schema": schema},
-            },
-        )
+    response = chat_model(model).bind(response_format=_json_format(schema_name, schema)).invoke(
+        [{"role": "system", "content": system}, *messages]
     )
-    return json.loads(response.choices[0].message.content or "{}")
+    return json.loads(text_of(response) or "{}")
 
 
 def stream_json(
-    system: str, messages: list[dict[str, str]], schema_name: str, schema: dict
-):
-    """Yield raw content deltas of a structured-output completion (retry covers only the connect)."""
-    stream = _with_retry(
-        lambda: client().chat.completions.create(
-            model=settings.chat_model,
-            messages=[{"role": "system", "content": system}, *messages],
-            response_format={
-                "type": "json_schema",
-                "json_schema": {"name": schema_name, "strict": True, "schema": schema},
-            },
-            stream=True,
-        )
+    system: str,
+    messages: list[dict[str, str]],
+    schema_name: str,
+    schema: dict,
+    model: str | None = None,
+) -> Iterator[str]:
+    """Yield raw content deltas of a structured completion.
+
+    Deliberately not with_structured_output: that hands back the parsed object
+    once it is complete, and the answer has to reach the user token by token.
+    Callers reassemble the field they care about from the partial JSON.
+    """
+    stream = chat_model(model).bind(response_format=_json_format(schema_name, schema)).stream(
+        [{"role": "system", "content": system}, *messages]
     )
     for chunk in stream:
-        if chunk.choices and chunk.choices[0].delta.content:
-            yield chunk.choices[0].delta.content
+        text = text_of(chunk)
+        if text:
+            yield text
+
+
+def text_of(message: Any) -> str:
+    """Plain text of a message, whether the provider returned a string or blocks."""
+    content = getattr(message, "content", message)
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return "".join(
+            part.get("text", "") for part in content if isinstance(part, dict)
+        )
+    return ""

@@ -154,7 +154,7 @@ def ingest_file(path: Path) -> IngestOutcome:
         return IngestOutcome(
             doc_id,
             "ok",
-            f"{len(chunks)} chunk, {table_count} tabelle",
+            f"{len(chunks)} chunks, {table_count} tables",
             len(chunks),
             table_count,
         )
@@ -193,7 +193,7 @@ def ingest_folder(raw_dir: Path | None = None) -> list[IngestOutcome]:
     ok = sum(1 for o in outcomes if o.outcome == "ok")
     skipped = sum(1 for o in outcomes if o.outcome == "skip")
     failed = sum(1 for o in outcomes if o.outcome == "fail")
-    print(f"\nTotale: {len(outcomes)} file — ok {ok}, skip {skipped}, fail {failed}")
+    print(f"\nTotal: {len(outcomes)} files — ok {ok}, skip {skipped}, fail {failed}")
     return outcomes
 
 

@@ -13,16 +13,12 @@ from typing import Any
 
 from docling_core.types.doc import DoclingDocument
 
+from app import workspace_layout as layout
+
 # sections are the agent's unit of reading: large enough to carry context,
 # small enough not to burn the prompt budget
 MIN_SECTION_CHARS = 1200
 MAX_SECTION_CHARS = 7000
-
-# A table artifact is a markdown grid, which cannot be quoted verbatim, so the
-# reader resolves the page back to the citable table chunks in Postgres. Format
-# and parser live side by side so producer and consumer cannot drift apart.
-TABLE_PAGE = " (page {page})"
-TABLE_PAGE_RE = re.compile(r"\(page (\d+)\)")
 
 
 def materialize(
@@ -58,9 +54,7 @@ def materialize(
         tables_dir.mkdir()
         for index, table in enumerate(doc.tables, 1):
             prov = table.prov[0] if table.prov else None
-            header = f"# Table {index} — {doc_id}"
-            if prov is not None:
-                header += TABLE_PAGE.format(page=prov.page_no)
+            header = layout.table_header(index, doc_id, prov.page_no if prov else None)
             markdown = table.export_to_markdown(doc)
             (tables_dir / f"table-{index:02d}.md").write_text(
                 f"{header}\n\n{markdown}\n", encoding="utf-8"
@@ -150,9 +144,8 @@ def write_sections(doc_dir: Path, doc_title: str, chunks: list[dict[str, Any]]) 
         filename = f"{number:02d}-{_slug(title)}.md"
         parts = [f"# {title}\n"]
         for chunk in section:
-            page = f" | page: {chunk['page']}" if chunk["page"] is not None else ""
-            kind = " | kind: table" if chunk["kind"] == "table" else ""
-            parts.append(f"<!-- chunk: {chunk['chunk_id']}{page}{kind} -->\n{chunk['text']}")
+            marker = layout.chunk_marker(chunk["chunk_id"], chunk["page"], chunk["kind"])
+            parts.append(f"{marker}\n{chunk['text']}")
         (sections_dir / filename).write_text("\n\n".join(parts) + "\n", encoding="utf-8")
 
         pages = sorted({c["page"] for c in section if c["page"] is not None})

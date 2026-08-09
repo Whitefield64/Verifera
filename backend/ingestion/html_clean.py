@@ -38,12 +38,68 @@ _PROTECTED_TAGS = {"html", "body", "main", "article"}
 MIN_YIELD = 0.3
 # if class-based cleaning keeps less than this, it was too aggressive
 _MIN_KEEP = 0.25
+# a single-row table this wide is a row of data, not a masthead or a caption
+WIDE_ROW_CELLS = 4
+
+
+def _own_rows(table) -> list:
+    """Rows belonging to this table rather than to one nested inside it."""
+    return [tr for tr in table.find_all("tr") if tr.find_parent("table") is table]
+
+
+def _own_cells(row) -> list:
+    return [c for c in row.find_all(["td", "th"]) if c.find_parent("tr") is row]
+
+
+def _is_layout_table(table) -> bool:
+    """True for the <table> as page-furniture idiom, not as data.
+
+    Two things a real data table has and a layout table does not: header cells,
+    and enough structure to relate values. A headerless table whose rows never
+    hold more than two cells is the classic label/content wrapper, and a
+    headerless single-row table usually relates nothing to anything.
+
+    This matters more than it sounds: EUR-Lex wraps every recital and every
+    lettered point in a two-cell table, so without this 96% of the "tables"
+    found in a legal corpus are paragraphs in disguise — they would be
+    materialized as table artifacts and pushed through the table-specific
+    citation path.
+
+    The single-row case stops short of WIDE_ROW_CELLS because some publishers
+    emit each line of a matrix as its own one-row table. Those are data, and
+    dropping structure needs at least as much evidence as keeping it.
+    """
+    if table.find("th"):
+        return False
+    rows = _own_rows(table)
+    widest = max((len(_own_cells(row)) for row in rows), default=0)
+    if len(rows) <= 1:
+        return widest <= WIDE_ROW_CELLS
+    return widest <= 2
+
+
+def _unwrap_layout_tables(soup: BeautifulSoup) -> None:
+    # Document order puts a parent table before the tables nested in it, so
+    # walking backwards flattens the innermost ones first.
+    for table in reversed(soup.find_all("table")):
+        if not _is_layout_table(table):
+            continue
+        block = soup.new_tag("div")
+        for row in _own_rows(table):
+            paragraph = soup.new_tag("p")
+            for cell in _own_cells(row):
+                for child in list(cell.contents):
+                    paragraph.append(child.extract())
+                paragraph.append(" ")
+            block.append(paragraph)
+        table.replace_with(block)
 
 
 def _strip_noise_tags(raw: str) -> BeautifulSoup:
     soup = BeautifulSoup(raw, "html.parser")
     for tag in soup.find_all(NOISE_TAGS):
         tag.decompose()
+    _unwrap_layout_tables(soup)
     return soup
 
 
