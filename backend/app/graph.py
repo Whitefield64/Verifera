@@ -43,6 +43,10 @@ def _union(left: list[str], right: list[str]) -> list[str]:
     return sorted(set(left) | set(right))
 
 
+def _add_usage(left: dict[str, int], right: dict[str, int]) -> dict[str, int]:
+    return {key: left.get(key, 0) + right.get(key, 0) for key in set(left) | set(right)}
+
+
 class ChatState(TypedDict, total=False):
     # input
     message: str
@@ -60,6 +64,7 @@ class ChatState(TypedDict, total=False):
     seen_chunk_ids: Annotated[list[str], _union]
     tool_calls: int
     agent_error: str
+    usage: Annotated[dict[str, int], _add_usage]
     # output
     answer: str
     citations: list[dict[str, Any]]
@@ -153,13 +158,14 @@ def build(pool: ConnectionPool):
             f"Knowledge base extracts:\n\n{rag.format_context(chunks)}\n\n"
             f"Question: {state['message']}"
         )
-        buffer, emitted = "", 0
+        buffer, emitted, usage = "", 0, {}
         for piece in llm.stream_json(
             pack.prompt("answer"),
             [*rag.trimmed_history(state.get("history") or []),
              {"role": "user", "content": user_message}],
             "rag_answer",
             rag.ANSWER_SCHEMA,
+            usage=usage,
         ):
             buffer += piece
             so_far = rag.partial_answer(buffer)
@@ -171,6 +177,7 @@ def build(pool: ConnectionPool):
             "answer": raw.get("answer", "").strip() or pack.message("no_context"),
             "raw_citations": raw.get("citations") or [],
             "model": settings.chat_model,
+            "usage": usage,
         }
 
     def agent(state: ChatState) -> dict[str, Any]:
@@ -207,7 +214,11 @@ def build(pool: ConnectionPool):
 
         if reasoning := _reasoning_of(response):
             write(("thinking", {"text": reasoning}))
-        return {"messages": [*updates, response], "model": model_name}
+        return {
+            "messages": [*updates, response],
+            "model": model_name,
+            "usage": llm.add_usage({}, response),
+        }
 
     def run_tools(state: ChatState) -> dict[str, Any]:
         write = get_stream_writer()
@@ -291,6 +302,7 @@ def _finalize_rag(state: ChatState) -> dict[str, Any]:
         "retrieved_chunk_ids": [chunk.chunk_id for chunk in chunks],
         "elapsed_ms": _elapsed_ms(state),
         "router": state.get("route", {}),
+        "usage": state.get("usage", {}),
     }
     if error := state.get("agent_error"):
         meta["agent_fallback_error"] = error
@@ -322,6 +334,7 @@ def _finalize_agent(pool: ConnectionPool, state: ChatState) -> dict[str, Any]:
             "tool_calls": state.get("tool_calls", 0),
             "citations_dropped_unseen": len(raw) - len(kept),
             "answer_format": method,
+            "usage": state.get("usage", {}),
         },
     }
 

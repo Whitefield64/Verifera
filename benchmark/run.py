@@ -165,6 +165,19 @@ def run_conversations(items: list[dict[str, Any]], client: ChatClient) -> list[d
     return list(transcripts.values())
 
 
+def _repo_relative(path: Path) -> str:
+    """Record the scenario file relative to the repo when it lives inside it.
+
+    PACK_DIR can be relative or absolute, and a pack can sit outside the
+    checkout entirely; the run record should note where it came from either way.
+    """
+    resolved = path.resolve()
+    try:
+        return str(resolved.relative_to(ROOT))
+    except ValueError:
+        return str(resolved)
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--scenarios", type=Path, default=SCENARIOS_PATH)
@@ -198,7 +211,7 @@ def main() -> int:
         "run": {
             "timestamp_utc": timestamp,
             "endpoint": args.backend_url,
-            "scenario_file": str(args.scenarios.relative_to(ROOT)),
+            "scenario_file": _repo_relative(args.scenarios),
             "item_count": len(items),
         },
         "transcripts": transcripts,

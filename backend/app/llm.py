@@ -41,7 +41,18 @@ def chat_model(model: str | None = None) -> ChatOpenAI:
         api_key=settings.openai_api_key,
         timeout=60.0,
         max_retries=2,
+        stream_usage=True,  # token counts arrive on the final streamed chunk
     )
+
+
+def add_usage(total: dict[str, int], message: Any) -> dict[str, int]:
+    """Accumulate a response's token usage. Reporting cost per query is only
+    possible if every call on the path contributes."""
+    usage = getattr(message, "usage_metadata", None) or {}
+    for key in ("input_tokens", "output_tokens"):
+        if value := usage.get(key):
+            total[key] = total.get(key, 0) + value
+    return total
 
 
 def _json_format(schema_name: str, schema: dict) -> dict:
@@ -107,6 +118,7 @@ def stream_json(
     schema_name: str,
     schema: dict,
     model: str | None = None,
+    usage: dict[str, int] | None = None,
 ) -> Iterator[str]:
     """Yield raw content deltas of a structured completion.
 
@@ -118,6 +130,8 @@ def stream_json(
         [{"role": "system", "content": system}, *messages]
     )
     for chunk in stream:
+        if usage is not None:
+            add_usage(usage, chunk)
         text = text_of(chunk)
         if text:
             yield text
