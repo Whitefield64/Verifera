@@ -38,6 +38,12 @@ READABLE_PATH = re.compile(
 
 DOC_ID = re.compile(r"[A-Za-z0-9_-]+")
 
+# A chunk id is "<doc_id>#<digest>". The digest length is set when chunks are
+# built and read back when stray references have to be scrubbed out of prose,
+# so the two sides share the number.
+CHUNK_ID_DIGEST_HEX = 16
+CHUNK_REF = rf"[\w-]+#[0-9a-f]{{{CHUNK_ID_DIGEST_HEX}}}"
+
 # Table artifacts carry their page in the header. A markdown grid cannot be
 # quoted verbatim, so the reader resolves the page back to the table chunks in
 # Postgres, whose text is what the quote verifier compares against.

@@ -37,6 +37,59 @@ ORDER BY seq LIMIT 10
 """
 
 
+def _function(name: str, description: str, properties: dict, required: list[str]) -> dict:
+    return {
+        "type": "function",
+        "function": {
+            "name": name,
+            "description": description,
+            "parameters": {
+                "type": "object",
+                "properties": properties,
+                "required": required,
+                "additionalProperties": False,
+            },
+        },
+    }
+
+
+# What the agent is allowed to do. Descriptions are domain-neutral on purpose:
+# the pack's prompt supplies the domain, these describe the mechanism.
+SCHEMAS = [
+    _function(
+        "semantic_search",
+        "Search the knowledge base for passages related to a query. Returns "
+        "matching chunks with their document, section and page. Use it to find "
+        "where something is, then read the section for the full context.",
+        {"query": {"type": "string", "description": "What to look for."}},
+        ["query"],
+    ),
+    _function(
+        "get_document_metadata",
+        "List what a document contains: its summary, its sections and its "
+        "tables, with the paths to read them.",
+        {"doc_id": {"type": "string", "description": "Document identifier."}},
+        ["doc_id"],
+    ),
+    _function(
+        "read_document_section",
+        "Read one section or table of a document. Sections carry inline "
+        "<!-- chunk: ... --> markers giving the chunk_id you may cite for the "
+        "text beneath them; for tables, cite the ids listed in citable_chunks.",
+        {
+            "doc_id": {"type": "string", "description": "Document identifier."},
+            "path": {
+                "type": "string",
+                "description": "A path from get_document_metadata, e.g. 'sections/03-scope.md'.",
+            },
+        },
+        ["doc_id", "path"],
+    ),
+]
+
+TOOL_NAMES = [schema["function"]["name"] for schema in SCHEMAS]
+
+
 @dataclass
 class ToolRun:
     """One agent run: its database handle, what it has seen, what it has spent."""

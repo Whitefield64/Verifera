@@ -9,7 +9,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response, StreamingResponse
 
-from app import chat as chat_service, db, pack
+from app import chat as chat_service, db, graph, pack
 from app.config import settings
 from app.schemas import ChatRequest, ChatResponse
 
@@ -57,6 +57,7 @@ async def lifespan(app: FastAPI):
     pack.check()  # a malformed pack should fail at boot, not on the first query
     db.ensure_schema()
     app.state.pool = db.create_pool()
+    app.state.graph = graph.build(app.state.pool)
     yield
     app.state.pool.close()
 
@@ -85,7 +86,7 @@ def pack_info() -> dict:
 @app.post("/api/chat", response_model=ChatResponse)
 def chat(payload: ChatRequest, request: Request) -> dict:
     history = [turn.model_dump() for turn in payload.history]
-    return chat_service.chat(request.app.state.pool, payload.message, history)
+    return chat_service.chat(request.app.state.graph, payload.message, history)
 
 
 @app.post("/api/chat/stream")
@@ -95,7 +96,7 @@ def chat_stream(payload: ChatRequest, request: Request) -> StreamingResponse:
     def events() -> Iterator[str]:
         try:
             for event, data in chat_service.chat_stream(
-                request.app.state.pool, payload.message, history
+                request.app.state.graph, payload.message, history
             ):
                 yield f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
         except Exception as exc:  # noqa: BLE001 — surface the failure to the client

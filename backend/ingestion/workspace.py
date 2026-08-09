@@ -120,11 +120,34 @@ def _group_sections(chunks: list[dict[str, Any]]) -> list[list[dict[str, Any]]]:
     return sections
 
 
+def _opening_line(section: list[dict[str, Any]], max_length: int = 90) -> str:
+    """First line that reads like the start of something.
+
+    Chunk boundaries fall mid-sentence, so the very first line of a section can
+    begin with a comma. Prefer a line that starts like a title or a sentence,
+    and settle for the first one only if none does.
+    """
+    fallback = ""
+    for chunk in section:
+        for line in chunk["text"].splitlines():
+            line = " ".join(line.strip().lstrip("#").split())
+            if len(line) < 8:
+                continue
+            if line[0].isalnum() and (line[0].isupper() or line[0].isdigit()):
+                return line[:max_length].rstrip()
+            fallback = fallback or line[:max_length].rstrip()
+    return fallback
+
+
 def _section_title(section: list[dict[str, Any]], doc_title: str) -> str:
     for chunk in section:
         if chunk["headings"]:
             return " › ".join(chunk["headings"])
-    return doc_title
+    # Some publishers carry no heading markup at all — legal texts routinely
+    # style article titles as classed paragraphs — and every section would then
+    # inherit the document's own name, telling the agent nothing about which one
+    # to open. The opening line is the next best label.
+    return _opening_line(section) or doc_title
 
 
 def write_sections(doc_dir: Path, doc_title: str, chunks: list[dict[str, Any]]) -> int:

@@ -1,14 +1,10 @@
-"""RAG path: condense follow-ups, hybrid retrieval, grounded answer with structured citations."""
+"""RAG-path pieces: query condensing, context formatting, incremental answer decoding.
 
-import json
+The orchestration that strings them together lives in app/graph.py."""
+
 import re
-from collections.abc import Iterator
-from time import monotonic
-from typing import Any
 
-from psycopg_pool import ConnectionPool
-
-from app import citations, llm, pack, retrieval
+from app import llm, pack, retrieval
 from app.config import settings
 
 ANSWER_SCHEMA = {
@@ -36,7 +32,7 @@ MAX_HISTORY_TURNS = 6
 MAX_HISTORY_CHARS = 700
 
 
-def _trimmed_history(history: list[dict[str, str]]) -> list[dict[str, str]]:
+def trimmed_history(history: list[dict[str, str]]) -> list[dict[str, str]]:
     return [
         {"role": turn["role"], "content": turn["content"][:MAX_HISTORY_CHARS]}
         for turn in history[-MAX_HISTORY_TURNS:]
@@ -104,59 +100,3 @@ def partial_answer(buf: str) -> str:
             out.append(char)
             i += 1
     return "".join(out)
-
-
-def chat_stream(
-    pool: ConnectionPool,
-    message: str,
-    history: list[dict[str, str]],
-    query: str | None = None,
-) -> Iterator[tuple[str, dict[str, Any]]]:
-    """Yield ("delta", {text}) events while the answer streams, then one ("done", ChatResponse)."""
-    started = monotonic()
-
-    if query is None:
-        query = condense_query(message, history) if history else message
-    query_vector = llm.embed([query])[0]
-    with pool.connection() as conn:
-        chunks = retrieval.hybrid_search(conn, query, query_vector)
-
-    if not chunks:
-        answer, chunk_citations = pack.message("no_context"), []
-        yield "delta", {"text": answer}
-    else:
-        user_message = (
-            f"Knowledge base extracts:\n\n{format_context(chunks)}\n\nQuestion: {message}"
-        )
-        buf, emitted = "", 0
-        for piece in llm.stream_json(
-            pack.prompt("answer"),
-            [*_trimmed_history(history), {"role": "user", "content": user_message}],
-            "rag_answer",
-            ANSWER_SCHEMA,
-        ):
-            buf += piece
-            answer_so_far = partial_answer(buf)
-            if len(answer_so_far) > emitted:
-                yield "delta", {"text": answer_so_far[emitted:]}
-                emitted = len(answer_so_far)
-        raw = json.loads(buf or "{}")
-        answer = raw.get("answer", "").strip() or pack.message("no_context")
-        chunk_citations = citations.build_citations(raw.get("citations", []), chunks)
-
-    yield (
-        "done",
-        {
-            "answer": answer,
-            "citations": chunk_citations,
-            "path": "rag",
-            "meta": {
-                "model": settings.chat_model,
-                "query_used": query,
-                "retrieved_chunk_ids": [chunk.chunk_id for chunk in chunks],
-                "elapsed_ms": round((monotonic() - started) * 1000),
-            },
-        },
-    )
-
-

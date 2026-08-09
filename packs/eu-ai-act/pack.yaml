@@ -29,6 +29,8 @@ messages:
     question.
   agent_failed: >-
     The in-depth path did not complete; falling back to a quick search.
+  no_answer: >-
+    I could not produce a useful answer from the documents I consulted.
 
 # Topic labels used to classify evaluation scenarios. benchmark/run.py validates
 # every scenario's `domain` against this list.

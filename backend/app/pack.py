@@ -18,7 +18,7 @@ import yaml
 
 from app.config import settings
 
-REQUIRED_PROMPTS = ("answer", "condense", "router", "summarize")
+REQUIRED_PROMPTS = ("answer", "condense", "router", "summarize", "agent")
 
 
 class PackError(RuntimeError):
@@ -52,9 +52,20 @@ def manifest() -> dict[str, Any]:
 
 
 @functools.lru_cache(maxsize=len(REQUIRED_PROMPTS) + 4)
-def prompt(name: str) -> str:
-    """System prompt `name` from the pack's prompts/ directory."""
+def _prompt_text(name: str) -> str:
     return _read(settings.pack_dir / "prompts" / f"{name}.md").strip()
+
+
+def prompt(name: str, **values: object) -> str:
+    """System prompt `name`, with {placeholders} filled in.
+
+    Substitution is a plain replace rather than str.format because prompts
+    legitimately contain JSON braces, which format() would try to interpret.
+    """
+    text = _prompt_text(name)
+    for key, value in values.items():
+        text = text.replace("{" + key + "}", str(value))
+    return text
 
 
 @functools.lru_cache(maxsize=1)
@@ -107,4 +118,4 @@ def check() -> None:
     manifest()
     routing_signals()
     for name in REQUIRED_PROMPTS:
-        prompt(name)
+        _prompt_text(name)

@@ -19,10 +19,10 @@ def temp_pack(tmp_path, monkeypatch):
         return tmp_path
 
     monkeypatch.setattr(settings, "pack_dir", tmp_path)
-    for cached in (pack.manifest, pack.prompt, pack.routing_signals):
+    for cached in (pack.manifest, pack._prompt_text, pack.routing_signals):
         cached.cache_clear()
     yield build
-    for cached in (pack.manifest, pack.prompt, pack.routing_signals):
+    for cached in (pack.manifest, pack._prompt_text, pack.routing_signals):
         cached.cache_clear()
 
 
