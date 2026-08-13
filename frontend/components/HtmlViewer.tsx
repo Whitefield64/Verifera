@@ -6,10 +6,10 @@ import { locateCitation } from "@/lib/anchors";
 import Markdown from "@/components/Markdown";
 import { UI } from "@/lib/strings";
 
-// sotto questa soglia il contenuto visibile è praticamente assente: succede
-// con pagine Next.js App Router che serializzano il markup dentro <template>
-// inerti e lo attivano via JS lato client — con lo script disabilitato (barriera
-// di sicurezza del sandbox) quel contenuto non arriva mai a schermo
+// Below this the page has effectively no visible content: it happens with
+// Next.js App Router pages that serialize their markup into inert <template>
+// elements and activate it with client-side JS — with scripts disabled (the
+// sandbox's security boundary) that content never reaches the screen.
 const MIN_VISIBLE_CHARS = 40;
 
 export type TextTarget = { quote: string; chunkText: string; nonce: number };
@@ -132,9 +132,9 @@ export default function HtmlViewer({
       style.textContent = HIGHLIGHT_CSS;
       (doc.head || doc.documentElement).appendChild(style);
     }
-    // alcune pagine (es. Next.js App Router) serializzano il markup dentro
-    // <template> inerti e lo attivano solo via JS lato client, che qui non
-    // eseguiamo per sicurezza: il documento "carica" ma non c'è nulla da vedere
+    // Some pages (Next.js App Router among them) serialize their markup into
+    // inert <template> elements and only activate it with client-side JS, which
+    // we deliberately do not run: the document "loads" with nothing to see.
     if ((doc.body?.innerText ?? "").trim().length < MIN_VISIBLE_CHARS) {
       fetch(docTextUrl(docId))
         .then((res) => (res.ok ? res.text() : Promise.reject(new Error(String(res.status)))))

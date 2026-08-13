@@ -1,16 +1,16 @@
 import { ToolEvent } from "@/lib/api";
 import { UI } from "@/lib/strings";
 
-/** Attività del percorso agentico accumulate durante lo streaming. */
+/** Agent-path activity, accumulated while the answer streams. */
 export type ActivityItem =
   | { type: "thinking"; text: string }
   | ({ type: "tool" } & ToolEvent);
 
 export type ActivityGroup = { type: "thinking"; texts: string[] } | { type: "tool"; tool: ToolEvent };
 
-/** Raggruppa i "thinking" consecutivi in un unico blocco collassabile, senza
- *  alterare l'ordine cronologico: il ragionamento resta intrecciato con i tool
- *  esattamente come è arrivato (l'agente pensa, agisce, pensa ancora…). */
+/** Merge consecutive "thinking" items into one collapsible block without
+ *  reordering anything: the reasoning stays interleaved with the tools exactly
+ *  as it arrived (the agent thinks, acts, thinks again…). */
 export function groupActivity(activity: ActivityItem[]): ActivityGroup[] {
   const groups: ActivityGroup[] = [];
   for (const item of activity) {
