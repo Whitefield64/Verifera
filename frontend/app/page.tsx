@@ -7,6 +7,11 @@ import { Citation, DocInfo, fetchDocuments, streamChat, ToolEvent } from "@/lib/
 import { ActivityItem } from "@/lib/activity";
 import { fetchPack, FALLBACK_PACK, PackInfo } from "@/lib/pack";
 
+const CHAT_MIN_WIDTH = 320;
+const CHAT_DEFAULT_WIDTH = 420;
+const CHAT_MAX_WIDTH = 720;
+const VIEWER_MIN_WIDTH = 360;
+
 export default function Home() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [busy, setBusy] = useState(false);
@@ -14,6 +19,8 @@ export default function Home() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [target, setTarget] = useState<ViewerTarget | null>(null);
   const [pack, setPack] = useState<PackInfo>(FALLBACK_PACK);
+  const [chatWidth, setChatWidth] = useState(CHAT_DEFAULT_WIDTH);
+  const layoutRef = useRef<HTMLDivElement>(null);
   const docsRef = useRef<Map<string, DocInfo>>(new Map());
 
   useEffect(() => {
@@ -114,6 +121,59 @@ export default function Home() {
     if (activeId === docId) setActiveId(next.length ? next[next.length - 1].docId : null);
   }
 
+  function clampChatWidth(width: number) {
+    const layoutWidth = layoutRef.current?.getBoundingClientRect().width ?? 0;
+    const maxByViewport = layoutWidth ? layoutWidth - VIEWER_MIN_WIDTH : CHAT_MAX_WIDTH;
+    const maxWidth = Math.max(
+      CHAT_MIN_WIDTH,
+      Math.min(CHAT_MAX_WIDTH, maxByViewport),
+    );
+
+    return Math.min(Math.max(width, CHAT_MIN_WIDTH), maxWidth);
+  }
+
+  function handleResizePointerDown(event: React.PointerEvent<HTMLDivElement>) {
+    event.preventDefault();
+    const pointerId = event.pointerId;
+    const startX = event.clientX;
+    const startWidth = chatWidth;
+    const handle = event.currentTarget;
+
+    try {
+      handle.setPointerCapture(pointerId);
+    } catch {
+      // Window listeners below keep resize working when pointer capture is unavailable.
+    }
+    document.body.classList.add("cursor-col-resize", "select-none");
+
+    function handlePointerMove(moveEvent: PointerEvent) {
+      setChatWidth(clampChatWidth(startWidth + moveEvent.clientX - startX));
+    }
+
+    function handlePointerUp() {
+      if (handle.hasPointerCapture(pointerId)) {
+        handle.releasePointerCapture(pointerId);
+      }
+      document.body.classList.remove("cursor-col-resize", "select-none");
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+      window.removeEventListener("pointercancel", handlePointerUp);
+    }
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+    window.addEventListener("pointercancel", handlePointerUp);
+  }
+
+  function handleResizeKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+    event.preventDefault();
+    const delta = event.shiftKey ? 40 : 16;
+    setChatWidth((width) =>
+      clampChatWidth(width + (event.key === "ArrowRight" ? delta : -delta)),
+    );
+  }
+
   return (
     <div className="flex h-screen flex-col">
       <header className="flex items-center justify-between border-b border-neutral-200 bg-white px-4 py-2.5">
@@ -127,14 +187,29 @@ export default function Home() {
           {pack.name}
         </span>
       </header>
-      <div className="flex min-h-0 flex-1">
-        <div className="w-[420px] shrink-0 border-r border-neutral-200 bg-neutral-50">
+      <div ref={layoutRef} className="flex min-h-0 flex-1">
+        <div
+          className="relative shrink-0 border-r border-neutral-200 bg-neutral-50"
+          style={{ width: chatWidth }}
+        >
           <Chat
             messages={messages}
             busy={busy}
             pack={pack}
             onSend={handleSend}
             onCitationClick={handleCitationClick}
+          />
+          <div
+            role="separator"
+            aria-label="Ridimensiona chat"
+            aria-orientation="vertical"
+            aria-valuemin={CHAT_MIN_WIDTH}
+            aria-valuemax={CHAT_MAX_WIDTH}
+            aria-valuenow={Math.round(chatWidth)}
+            tabIndex={0}
+            onPointerDown={handleResizePointerDown}
+            onKeyDown={handleResizeKeyDown}
+            className="absolute inset-y-0 -right-1 z-10 w-2 cursor-col-resize outline-none after:absolute after:inset-y-0 after:left-1/2 after:w-px after:-translate-x-1/2 after:bg-transparent hover:after:bg-amber-500 focus:after:bg-amber-500"
           />
         </div>
         <div className="min-w-0 flex-1">

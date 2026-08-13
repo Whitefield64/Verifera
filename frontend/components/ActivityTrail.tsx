@@ -3,9 +3,9 @@
 import { ActivityItem, groupActivity, statusLabel, traySummary } from "@/lib/activity";
 import { UI } from "@/lib/strings";
 
-/** Trail del percorso agentico: righe espandibili durante l'elaborazione,
- *  riga-sommario riapribile a risposta completata. Per il path RAG mostra
- *  solo la riga di stato finché non arriva il primo token. */
+/** The agent path's trail: expandable rows while it works, collapsing into one
+ *  reopenable summary row once the answer is complete. On the RAG path there is
+ *  no activity, so only the status line shows until the first token. */
 export default function ActivityTrail({
   activity,
   streaming,
@@ -18,7 +18,7 @@ export default function ActivityTrail({
   if (streaming) {
     return (
       <div className="space-y-1">
-        <TrailRows activity={activity} />
+        <TrailRows activity={activity} live />
         <div className="flex items-center gap-2 py-0.5 text-xs text-neutral-500">
           <span className="h-3 w-3 shrink-0 animate-spin rounded-full border border-neutral-300 border-t-amber-500" />
           {statusLabel(activity)}
@@ -39,13 +39,15 @@ export default function ActivityTrail({
   );
 }
 
-function TrailRows({ activity }: { activity: ActivityItem[] }) {
+/** `live` opens the reasoning rows while the agent works: it is the visible half
+ *  of the ReAct loop, and collapsed it would go by unread. Tools stay closed. */
+function TrailRows({ activity, live }: { activity: ActivityItem[]; live?: boolean }) {
   if (activity.length === 0) return null;
   return (
     <div className="space-y-0.5 text-xs">
       {groupActivity(activity).map((group, i) =>
         group.type === "thinking" ? (
-          <details key={i} className="group/row rounded px-1 hover:bg-neutral-100">
+          <details key={i} open={live} className="group/row rounded px-1 hover:bg-neutral-100">
             <summary className="cursor-pointer select-none list-none py-0.5 text-neutral-500">
               <Chevron row /> <span className="text-neutral-400">∴</span> {UI.reasoning}
             </summary>
