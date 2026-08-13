@@ -4,7 +4,19 @@ The trail is what the user watches for the minute an agent run takes. Handing
 the UI raw tool JSON would be the same as showing nothing.
 """
 
-from app.graph import _dropped_unseen, _union, _unsupported_refs, tool_event
+from types import SimpleNamespace
+
+from app.agent_output import MISSING_SOURCES_NUDGE, SOURCES_MARKER
+from app.graph import (
+    _dropped_unseen,
+    _final_text,
+    needs_sources,
+    _union,
+    _unsupported_refs,
+    tool_event,
+)
+
+CITATIONS = '{"citations": [{"chunk_id": "ai-act-en#0f3c1a2b4d5e6f70", "quote": "q"}]}'
 
 
 def test_search_preview_names_the_documents_found():
@@ -83,3 +95,39 @@ def test_claims_that_lose_their_support_are_counted():
 def test_seen_chunks_merge_across_steps_without_duplicates():
     """Every tool call adds to the same record; order must be stable for tests."""
     assert _union(["b", "a"], ["a", "c"]) == ["a", "b", "c"]
+
+
+def test_a_retried_sources_block_is_joined_back_to_its_answer():
+    """The retry is asked for the block alone, so the prose it belongs to is
+    the turn before the nudge. Reading only the last message would publish the
+    citations and throw the answer away."""
+    messages = [
+        SimpleNamespace(content="The prohibitions apply from 2 February 2025."),
+        SimpleNamespace(content=MISSING_SOURCES_NUDGE),
+        SimpleNamespace(content=f"{SOURCES_MARKER}\n```json\n{CITATIONS}\n```"),
+    ]
+    text = _final_text({"messages": messages, "sources_retried": True})
+    assert "The prohibitions apply from 2 February 2025." in text
+    assert SOURCES_MARKER in text
+
+
+def test_without_a_retry_the_last_turn_is_the_whole_answer():
+    messages = [SimpleNamespace(content="Only this.")]
+    assert _final_text({"messages": messages}) == "Only this."
+
+
+def test_an_answer_without_its_sources_is_sent_back_once():
+    """The whole point of the retry: prose carrying inline references and no
+    citations array would otherwise publish claims with nothing behind them."""
+    unsupported = [
+        SimpleNamespace(content="Fines reach EUR 35 000 000 [[ai-act-en#0f3c1a2b4d5e6f70]].")
+    ]
+    assert needs_sources({"messages": unsupported})
+    # asked once and no more, whatever came back
+    assert not needs_sources({"messages": unsupported, "sources_retried": True})
+
+
+def test_a_turn_that_carries_its_sources_goes_straight_out():
+    complete = [SimpleNamespace(content=f"Fines reach EUR 35 000 000.\n\n{SOURCES_MARKER}\n```json\n{CITATIONS}\n```")]
+    assert not needs_sources({"messages": complete})
+    assert not needs_sources({"messages": []})

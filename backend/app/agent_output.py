@@ -12,11 +12,31 @@ import json
 import re
 from typing import Any
 
+from app import citations
 from app import workspace_layout as layout
 
 # Shared with the pack's agent prompt, which interpolates it: the writer and the
 # reader of this marker must never drift apart.
 SOURCES_MARKER = "---SOURCES---"
+
+# Asking for the half of the format that went missing. Lives next to the marker
+# for the same reason the marker does: the words that request this block and the
+# code that parses it must not drift apart. Protocol, not domain — it says
+# nothing about what the documents contain.
+# It restates the shape instead of pointing at it. The premise of asking at all
+# is that the model did not follow the format it was already given, so a nudge
+# that only names it repeats the failure: asked without the example, the model
+# emitted the marker and then prose, and every citation was still lost.
+MISSING_SOURCES_NUDGE = f"""Your answer above is complete and will be kept exactly as written. Do not repeat or revise it.
+
+It is missing its sources block. Reply with ONLY these two things and nothing else:
+
+{SOURCES_MARKER}
+```json
+{{"citations": [{{"chunk_id": "<a chunk_id you referenced above>", "quote": "<sentence copied verbatim from that chunk>"}}]}}
+```
+
+One entry for every chunk_id you referenced in the answer. Each quote must be copied word for word from that chunk's text; a paraphrase is rejected."""
 
 _JSON_BLOCK = re.compile(r"```json\s*(\{.*?\})\s*```", re.DOTALL)
 _BARE_FENCE = re.compile(r"```(?:json)?")
@@ -36,6 +56,10 @@ _DOUBLE_SPACE = re.compile(r" {2,}")
 
 
 def strip_inline_chunk_refs(text: str) -> str:
+    # Bracketed leftovers first, and by a looser rule than the canonical id:
+    # cleanup must be more permissive than matching, or a reference the model
+    # nearly got right slips between the two and lands on the reader's screen.
+    text = citations.UNRESOLVED_REF.sub(" ", text)
     return _DOUBLE_SPACE.sub(" ", _INLINE_CHUNK_REF.sub(" ", text)).strip()
 
 
@@ -97,6 +121,11 @@ def _extract_citations(tail: str) -> list[dict[str, Any]]:
     return []
 
 
+def has_sources_block(text: str) -> bool:
+    """Whether the final turn carries the citations half of its contract."""
+    return bool(_MARKER.search(text)) or bool(_extract_citations(text))
+
+
 def extract(text: str) -> tuple[str, list[dict[str, Any]], str]:
     """Split the agent's final text into (answer_markdown, raw_citations, method).
 
@@ -112,4 +141,7 @@ def extract(text: str) -> tuple[str, list[dict[str, Any]], str]:
     single = _single_block_payload(text)
     if single is not None:
         return single["answer"].strip(), single.get("citations") or [], "single_block"
-    return _strip_code_fences(text).strip(), [], "raw"
+    # No marker is not the same as no citations: the model sometimes writes the
+    # JSON block and drops only the line above it. Looking for the block anyway
+    # costs nothing and saves every citation in the answer.
+    return _strip_code_fences(text).strip(), _extract_citations(text), "raw"

@@ -3,7 +3,9 @@
                      ┌── rag ──→ retrieve → generate ──┐
     condense → route ┤                                 ├→ finalize → END
                      └── agent ──→ agent ⇄ tools ──────┘
-                                     │
+                                     │ ⇅
+                                     │ ask_for_sources  (once, if the final
+                                     │                   turn left them out)
                                      └─(failure)→ retrieve
 
 Everything domain-specific comes from the pack; everything provider-specific
@@ -64,6 +66,7 @@ class ChatState(TypedDict, total=False):
     seen_chunk_ids: Annotated[list[str], _union]
     tool_calls: int
     agent_error: str
+    sources_retried: bool
     usage: Annotated[dict[str, int], _add_usage]
     # output
     answer: str
@@ -263,10 +266,26 @@ def build(pool: ConnectionPool):
     def after_route(state: ChatState) -> str:
         return "agent" if state.get("path") == "agent" else "retrieve"
 
+    def ask_for_sources(state: ChatState) -> dict[str, Any]:
+        """Ask once for the citations block the final turn left out.
+
+        The model marks its sentences and then ends in prose without the
+        sources half of the format — measured at 3 of 18 agent answers. Every
+        citation is dropped and the reader gets claims with nothing behind
+        them, which is the one failure this system exists to prevent. The
+        answer is already written, so the retry only pays for the block.
+        """
+        return {
+            "messages": [HumanMessage(agent_output.MISSING_SOURCES_NUDGE)],
+            "sources_retried": True,
+        }
+
     def after_agent(state: ChatState) -> str:
         if state.get("agent_error"):
             return "retrieve"  # the endpoint never depends on the agent's health
-        return "tools" if getattr(state["messages"][-1], "tool_calls", None) else "finalize"
+        if getattr(state["messages"][-1], "tool_calls", None):
+            return "tools"
+        return "ask_for_sources" if needs_sources(state) else "finalize"
 
     graph = StateGraph(ChatState)
     graph.add_node("condense", condense)
@@ -275,6 +294,7 @@ def build(pool: ConnectionPool):
     graph.add_node("generate", generate)
     graph.add_node("agent", agent)
     graph.add_node("tools", run_tools)
+    graph.add_node("ask_for_sources", ask_for_sources)
     graph.add_node("finalize", finalize)
 
     graph.add_edge(START, "condense")
@@ -283,9 +303,17 @@ def build(pool: ConnectionPool):
     graph.add_edge("retrieve", "generate")
     graph.add_edge("generate", "finalize")
     graph.add_conditional_edges(
-        "agent", after_agent, {"tools": "tools", "retrieve": "retrieve", "finalize": "finalize"}
+        "agent",
+        after_agent,
+        {
+            "tools": "tools",
+            "retrieve": "retrieve",
+            "ask_for_sources": "ask_for_sources",
+            "finalize": "finalize",
+        },
     )
     graph.add_edge("tools", "agent")
+    graph.add_edge("ask_for_sources", "agent")
     graph.add_edge("finalize", END)
     return graph.compile(name="chat")
 
@@ -330,8 +358,48 @@ def _finalize_rag(state: ChatState) -> dict[str, Any]:
     return {"answer": answer, "citations": built, "path": "rag", "meta": meta}
 
 
+def needs_sources(state: ChatState) -> bool:
+    """Whether the final turn left its citations out and may still be asked.
+
+    Module level rather than inside build(): this is the decision that keeps a
+    finished answer from reaching the reader with nothing behind it, and it is
+    worth being able to test without compiling a graph.
+    """
+    messages = state.get("messages") or []
+    if state.get("sources_retried") or not messages:
+        return False
+    return not agent_output.has_sources_block(llm.text_of(messages[-1]))
+
+
+def _final_text(state: ChatState) -> str:
+    """The agent's last turn, with a retried sources block joined back on.
+
+    The retry is asked to send the block alone, so on its own it carries no
+    answer. Gluing it to the prose it belongs to hands extract() exactly the
+    shape it already parses, and nothing downstream has to know a retry
+    happened.
+    """
+    messages = state.get("messages") or []
+    if not messages:
+        return ""
+    text = llm.text_of(messages[-1])
+    if not state.get("sources_retried"):
+        return text
+    nudged = next(
+        (
+            index
+            for index in range(len(messages) - 1, 0, -1)
+            if llm.text_of(messages[index]) == agent_output.MISSING_SOURCES_NUDGE
+        ),
+        None,
+    )
+    if nudged is None:
+        return text
+    return f"{llm.text_of(messages[nudged - 1])}\n\n{text}"
+
+
 def _finalize_agent(pool: ConnectionPool, state: ChatState) -> dict[str, Any]:
-    text = llm.text_of(state["messages"][-1]) if state.get("messages") else ""
+    text = _final_text(state)
     answer, raw, method = agent_output.extract(text)
 
     # The anti-hallucination rule: an answer may only cite what the tools
@@ -363,6 +431,7 @@ def _finalize_agent(pool: ConnectionPool, state: ChatState) -> dict[str, Any]:
             "citations_dropped_unseen": dropped,
             "inline_refs_unsupported": unsupported,
             "answer_format": method,
+            "sources_retried": bool(state.get("sources_retried")),
             "usage": state.get("usage", {}),
         },
     }
