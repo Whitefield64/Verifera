@@ -56,7 +56,6 @@ class ChatState(TypedDict, total=False):
     # routing
     query: str
     route: dict[str, Any]
-    escalate: bool
     path: str
     # rag path
     chunks: list[retrieval.RetrievedChunk]
@@ -141,7 +140,7 @@ def build(pool: ConnectionPool):
 
     def route(state: ChatState) -> dict[str, Any]:
         decision = router.route(state["query"])
-        return {"route": decision.as_meta(), "escalate": decision.escalate, "path": decision.path}
+        return {"route": decision.as_meta(), "path": decision.path}
 
     def retrieve(state: ChatState) -> dict[str, Any]:
         query_vector = llm.embed([state["query"]])[0]
@@ -194,9 +193,6 @@ def build(pool: ConnectionPool):
 
     def agent(state: ChatState) -> dict[str, Any]:
         write = get_stream_writer()
-        model_name = (
-            settings.agent_escalation_model if state.get("escalate") else settings.agent_model
-        )
         system = pack.prompt(
             "agent",
             max_tool_calls=settings.agent_max_tool_calls,
@@ -214,7 +210,7 @@ def build(pool: ConnectionPool):
         # has: taking the tools away is a firmer instruction than asking.
         spent = state.get("tool_calls", 0)
         out_of_time = monotonic() - state.get("started", monotonic()) > settings.agent_timeout_s
-        model = llm.chat_model(model_name)
+        model = llm.chat_model(settings.agent_model, reasoning=True)
         if spent < hard_cap and not out_of_time:
             model = model.bind_tools(tools.SCHEMAS)
 
@@ -225,11 +221,11 @@ def build(pool: ConnectionPool):
             write(("thinking", {"text": pack.message("agent_failed")}))
             return {"agent_error": str(error)}
 
-        if reasoning := _reasoning_of(response):
-            write(("thinking", {"text": reasoning}))
+        if thought := _thought_of(response):
+            write(("thinking", {"text": thought}))
         return {
             "messages": [*updates, response],
-            "model": model_name,
+            "model": settings.agent_model,
             "usage": llm.add_usage({}, response),
         }
 
@@ -318,17 +314,42 @@ def build(pool: ConnectionPool):
     return graph.compile(name="chat")
 
 
+def _thought_of(response: Any) -> str:
+    """What the agent was thinking on this turn, for the activity trail.
+
+    The provider's reasoning summary when there is one; otherwise the prose the
+    model wrote alongside its tool calls. Only on tool-calling turns: on the
+    final turn that same prose *is* the answer, and would land in the trail
+    twice.
+    """
+    if summary := _reasoning_of(response):
+        return summary
+    if getattr(response, "tool_calls", None):
+        return llm.text_of(response).strip()
+    return ""
+
+
 def _reasoning_of(response: Any) -> str:
-    """Reasoning summaries, when the provider exposes them."""
+    """Reasoning summaries, when the provider exposes them.
+
+    Responses API blocks carry `summary` as a list of `{"text": ...}` parts;
+    other shapes hand back a plain string.
+    """
     content = getattr(response, "content", None)
     if not isinstance(content, list):
         return ""
-    parts = [
-        block.get("summary") or block.get("reasoning") or ""
-        for block in content
-        if isinstance(block, dict) and block.get("type") in {"reasoning", "thinking"}
-    ]
-    return "\n".join(part for part in parts if isinstance(part, str) and part).strip()
+    parts: list[str] = []
+    for block in content:
+        if not isinstance(block, dict) or block.get("type") not in {"reasoning", "thinking"}:
+            continue
+        summary = block.get("summary") or block.get("reasoning") or ""
+        if isinstance(summary, str):
+            parts.append(summary)
+        elif isinstance(summary, list):
+            parts.extend(
+                part.get("text", "") for part in summary if isinstance(part, dict)
+            )
+    return "\n".join(part for part in parts if part).strip()
 
 
 def _finalize_rag(state: ChatState) -> dict[str, Any]:

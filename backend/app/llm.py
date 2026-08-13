@@ -35,13 +35,28 @@ def client() -> OpenAI:
 
 
 @lru_cache(maxsize=8)
-def chat_model(model: str | None = None) -> ChatOpenAI:
+def chat_model(model: str | None = None, reasoning: bool = False) -> ChatOpenAI:
+    # Passing `reasoning` switches langchain to the Responses API, the only one
+    # that returns the model's reasoning at all. The effort has to be explicit:
+    # with `summary` alone the default is off, 0 reasoning tokens and no summary
+    # block ever comes back. `low` because effort is bought by the second: one
+    # agent query measured 12.8s/1.3k output tokens with no reasoning, 17.6s/1.7k
+    # at low, 54s/7.1k at medium — for the same answer and the same 7 citations.
+    extra: dict[str, Any] = (
+        {
+            "reasoning": {"effort": "low", "summary": "auto"},
+            "output_version": "responses/v1",
+        }
+        if reasoning
+        else {}
+    )
     return ChatOpenAI(
         model=model or settings.chat_model,
         api_key=settings.openai_api_key,
         timeout=60.0,
         max_retries=2,
         stream_usage=True,  # token counts arrive on the final streamed chunk
+        **extra,
     )
 
 

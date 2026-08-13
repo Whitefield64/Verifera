@@ -29,7 +29,6 @@ class PackError(RuntimeError):
 class RoutingSignal:
     name: str
     path: str  # "rag" | "agent"
-    escalate: bool
     pattern: re.Pattern[str]
 
 
@@ -86,7 +85,6 @@ def routing_signals() -> tuple[RoutingSignal, ...]:
             RoutingSignal(
                 name=raw["name"],
                 path=raw["path"],
-                escalate=bool(raw.get("escalate", False)),
                 pattern=pattern,
             )
         )

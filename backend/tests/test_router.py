@@ -13,20 +13,18 @@ def test_comparison_goes_to_agent():
     )
     assert decision is not None
     assert decision.path == "agent"
-    assert decision.escalate is False
 
 
-def test_annex_lookup_escalates():
+def test_annex_lookup_goes_to_agent():
     decision = route_by_signals("Which systems does Annex III list as high-risk?")
     assert decision is not None
     assert decision.path == "agent"
-    assert decision.escalate is True
 
 
-def test_penalties_escalate():
+def test_penalties_go_to_agent():
     decision = route_by_signals("What administrative fines apply to a prohibited practice?")
     assert decision is not None
-    assert decision.escalate is True
+    assert decision.path == "agent"
 
 
 def test_planning_goes_to_agent():

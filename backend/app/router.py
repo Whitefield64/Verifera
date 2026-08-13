@@ -2,8 +2,10 @@
 
 Simple single-document lookups stay on the fast RAG path; comparisons,
 multi-document synthesis and structured/tabular lookups go to the agent path.
-Structured lookups also escalate the agent to a larger model, because that is
-the class where picking the wrong row produces a confident wrong answer.
+
+The router chooses a path and nothing else. It used to also escalate structured
+lookups to a larger model; measured against the same questions the larger model
+answered no better, so the whole notion is gone rather than left dormant.
 
 Both the signals and the classifier prompt come from the domain pack: this
 module decides *how* to route, never *what* the domain looks like.
@@ -16,11 +18,8 @@ from app.config import settings
 
 CLASSIFIER_SCHEMA = {
     "type": "object",
-    "properties": {
-        "path": {"type": "string", "enum": ["rag", "agent"]},
-        "needs_deep_reasoning": {"type": "boolean"},
-    },
-    "required": ["path", "needs_deep_reasoning"],
+    "properties": {"path": {"type": "string", "enum": ["rag", "agent"]}},
+    "required": ["path"],
     "additionalProperties": False,
 }
 
@@ -28,7 +27,6 @@ CLASSIFIER_SCHEMA = {
 @dataclass
 class RouteDecision:
     path: str  # "rag" | "agent"
-    escalate: bool  # larger model, only for structured/tabular lookups
     method: str  # what decided: "signal:…", "classifier" or "fallback:error"
 
     def as_meta(self) -> dict:
@@ -38,7 +36,7 @@ class RouteDecision:
 def route_by_signals(query: str) -> RouteDecision | None:
     for signal in pack.routing_signals():
         if signal.pattern.search(query):
-            return RouteDecision(signal.path, signal.escalate, f"signal:{signal.name}")
+            return RouteDecision(signal.path, f"signal:{signal.name}")
     return None
 
 
@@ -54,10 +52,6 @@ def route(query: str) -> RouteDecision:
             CLASSIFIER_SCHEMA,
             model=settings.utility_model,
         )
-        return RouteDecision(
-            path=result["path"],
-            escalate=result["path"] == "agent" and result["needs_deep_reasoning"],
-            method="classifier",
-        )
+        return RouteDecision(path=result["path"], method="classifier")
     except Exception:  # the router must never block an answer
-        return RouteDecision("rag", escalate=False, method="fallback:error")
+        return RouteDecision("rag", method="fallback:error")

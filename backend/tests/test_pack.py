@@ -46,7 +46,6 @@ def test_multiline_pattern_is_rejoined(temp_pack):
             "signals:\n"
             "  - name: comparison\n"
             "    path: agent\n"
-            "    escalate: true\n"
             "    pattern: |-\n"
             "      \\b(compare\n"
             "      |difference between)\\b\n"
@@ -54,7 +53,7 @@ def test_multiline_pattern_is_rejoined(temp_pack):
     )
     (signal,) = pack.routing_signals()
     assert signal.name == "comparison"
-    assert signal.escalate is True
+    assert signal.path == "agent"
     assert signal.pattern.search("please Compare these two")
     # the alternative that followed the line break, with nothing before it
     assert signal.pattern.match("difference between A and B")

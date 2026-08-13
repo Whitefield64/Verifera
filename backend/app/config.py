@@ -40,8 +40,11 @@ class Settings(BaseSettings):
     max_chunk_tokens: int = 512
 
     # agent path
+    # One model on the agent path. Structured and tabular lookups used to buy a
+    # larger one; measured on the same nine questions it answered no better —
+    # two of them worse — while carrying ~70% of the bill at 6.7x the price per
+    # token. See docs/evaluation.md.
     agent_model: str = "gpt-5.4-mini"
-    agent_escalation_model: str = "gpt-5.5"  # only for structured/tabular lookups
     agent_max_tool_calls: int = 12  # soft cap: past it, tools ask the model to conclude
     agent_hard_cap_extra: int = 4  # past soft+extra the run is aborted
     agent_timeout_s: float = 150.0

@@ -11,6 +11,7 @@ from app.graph import (
     _dropped_unseen,
     _final_text,
     needs_sources,
+    _thought_of,
     _union,
     _unsupported_refs,
     tool_event,
@@ -67,6 +68,34 @@ def test_errors_surface_in_the_trail():
     event = tool_event("read_document_section", {"doc_id": "x", "path": "sections/y.md"}, {"error": "no such file"})
     assert event["summary"] == "error: no such file"
     assert event["items"] == []
+
+
+def _turn(content, tool_calls=()):
+    return SimpleNamespace(content=content, tool_calls=list(tool_calls))
+
+
+def test_reasoning_summary_is_read_out_of_responses_blocks():
+    """The Responses API nests the summary in a list, not a string."""
+    response = _turn([
+        {"type": "reasoning", "summary": [
+            {"type": "summary_text", "text": "Annex III lists the high-risk uses."},
+            {"type": "summary_text", "text": "Reading the section itself."},
+        ]},
+        {"type": "text", "text": "Let me look that up."},
+    ])
+    assert _thought_of(response) == (
+        "Annex III lists the high-risk uses.\nReading the section itself."
+    )
+
+
+def test_prose_before_a_tool_call_stands_in_for_a_missing_summary():
+    response = _turn("Searching for the penalty tiers first.", [{"name": "semantic_search"}])
+    assert _thought_of(response) == "Searching for the penalty tiers first."
+
+
+def test_the_final_turn_never_enters_the_trail():
+    """Without tool calls the prose is the answer; showing it twice is a bug."""
+    assert _thought_of(_turn("The prohibitions apply from 2 February 2025.")) == ""
 
 
 def test_dropped_citations_are_counted_not_just_discarded():

@@ -18,7 +18,6 @@ signals:
   # document, whatever the classifier thinks.
   - name: comparison
     path: agent
-    escalate: false
     pattern: |-
       \b(compare|comparison|difference between|differs?\s+from|versus|vs\.?
       |which of the (two|three)|instead of|rather than
@@ -28,7 +27,6 @@ signals:
   # answer is assembled, never quoted from one place.
   - name: planning
     path: agent
-    escalate: false
     pattern: |-
       \b(roadmap|action plan|implementation plan|compliance plan|checklist
       |step[-\s]by[-\s]step|what (do|must) (i|we) (need to )?do
@@ -37,10 +35,9 @@ signals:
 
   # Annex tables, penalty tiers and conformity-assessment routes: the class of
   # query where picking the wrong row silently produces a confident wrong
-  # answer, so it also escalates to the larger model.
+  # answer, so it is worth the agent's tool budget.
   - name: structured_lookup
     path: agent
-    escalate: true
     pattern: |-
       \b(annex(es)?\s*[ivx\d]+|allegat[oi]\s*[ivx\d]+
       |penalt(y|ies)|administrative fines?|sanzion\w+|ammend\w+
