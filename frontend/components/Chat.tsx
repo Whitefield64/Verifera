@@ -50,13 +50,13 @@ export default function Chat({
     <div className="flex h-full flex-col">
       <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto p-4">
         {messages.length === 0 && (
-          <div className="mt-10 space-y-3 text-sm text-neutral-500">
-            <p className="font-medium text-neutral-700">{pack.description}</p>
+          <div className="mt-10 space-y-3 text-sm text-[var(--verifera-ink-muted)]">
+            <p className="font-medium text-[#2b2540]">{pack.description}</p>
             {pack.suggestions.map((s) => (
               <button
                 key={s}
                 onClick={() => onSend(s)}
-                className="block w-full rounded-lg border border-neutral-200 bg-white p-2 text-left hover:border-amber-400 hover:bg-amber-50"
+                className="block w-full rounded-lg border border-[var(--verifera-line)] bg-white p-2 text-left transition-colors hover:border-[var(--verifera-teal)] hover:bg-[var(--verifera-teal-soft)]"
               >
                 {s}
               </button>
@@ -67,18 +67,18 @@ export default function Chat({
           <MessageBubble key={i} message={message} onCitationClick={onCitationClick} />
         ))}
       </div>
-      <form onSubmit={submit} className="border-t border-neutral-200 p-3">
+      <form onSubmit={submit} className="border-t border-[var(--verifera-line)] bg-white p-3">
         <div className="flex gap-2">
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder={pack.placeholder}
-            className="flex-1 rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-amber-500"
+            className="flex-1 rounded-lg border border-[var(--verifera-line)] px-3 py-2 text-sm outline-none transition-colors focus:border-[var(--verifera-teal)] focus:ring-2 focus:ring-[rgba(8,198,164,0.16)]"
           />
           <button
             type="submit"
             disabled={busy || !input.trim()}
-            className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
+            className="rounded-lg bg-[var(--verifera-purple)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#2d1188] disabled:opacity-40 disabled:hover:bg-[var(--verifera-purple)]"
           >
             {UI.send}
           </button>
@@ -97,13 +97,13 @@ function MessageBubble({
 }) {
   if (message.role === "user") {
     return (
-      <div className="ml-8 rounded-xl rounded-br-sm bg-neutral-900 p-3 text-sm text-white">
+      <div className="ml-8 rounded-xl rounded-br-sm bg-[var(--verifera-purple)] p-3 text-sm text-white">
         {message.content}
       </div>
     );
   }
   return (
-    <div className="mr-4 rounded-xl rounded-bl-sm border border-neutral-200 bg-white p-3 text-sm shadow-sm">
+    <div className="mr-4 rounded-xl rounded-bl-sm border border-[var(--verifera-line)] bg-white p-3 text-sm shadow-sm shadow-[#3a18a6]/[0.03]">
       {(message.streaming || !!message.activity?.length) && (
         <ActivityTrail
           activity={message.activity ?? []}
@@ -141,8 +141,8 @@ function SourceList({
   onCitationClick: (citation: Citation) => void;
 }) {
   return (
-    <div className="mt-3 space-y-1.5 border-t border-neutral-100 pt-2">
-      <div className="text-[10px] font-medium uppercase tracking-wider text-neutral-400">
+    <div className="mt-3 space-y-1.5 border-t border-[var(--verifera-line)] pt-2">
+      <div className="text-[10px] font-medium uppercase tracking-wider text-[var(--verifera-ink-muted)]">
         {UI.sources}
       </div>
       {groupByMarker(citations).map((group) => {
@@ -151,7 +151,7 @@ function SourceList({
           <button
             key={first.chunk_id + first.marker}
             onClick={() => onCitationClick(first)}
-            className="flex w-full gap-2 rounded px-1 py-0.5 text-left hover:bg-neutral-50"
+            className="flex w-full gap-2 rounded px-1 py-0.5 text-left transition-colors hover:bg-[var(--verifera-purple-soft)]"
           >
             <span className="w-4 shrink-0 pt-px text-right text-[11px] font-medium text-neutral-400">
               {first.marker ?? "·"}
@@ -162,7 +162,7 @@ function SourceList({
                 {first.page != null && (
                   <span className="shrink-0 text-neutral-400">p.{first.page}</span>
                 )}
-                <span className={first.verified ? "text-emerald-600" : "text-amber-600"}>
+                <span className={first.verified ? "text-[var(--verifera-teal)]" : "text-amber-600"}>
                   {first.verified ? "✓" : "⚠"}
                 </span>
               </span>

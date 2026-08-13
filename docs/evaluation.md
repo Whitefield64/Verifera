@@ -186,6 +186,111 @@ above. See **v3** for the result. The original list, kept for the record:
    full run — a two-line fix that makes the most valuable experiment free to
    iterate on.
 
+# v5 — post-recovery run, graded
+
+Run of 2026-08-13, all 40 scenarios, commit `2026d10`. No code changed between
+v4 and this run — it followed an incident where the Postgres volume behind the
+API container held zero rows (`documents` and `chunks` both empty) while the
+on-disk `data/workspace/` and `data/objects/` still showed a completed prior
+publish. The corpus was republished from `data/objects/` (`ingestion ingest`,
+~$0.02 in embeddings), and this run exists to confirm nothing else regressed.
+Transcripts: [`benchmark/results/20260813T093629Z.json`](../benchmark/results/20260813T093629Z.json).
+
+Graded by reading every answer against the actual chunk text in
+`data/workspace/`, not against the reference alone. No LLM judge.
+
+| | v4 (baseline) | v5 (this run) |
+|---|---|---|
+| Content | 35 complete · 5 partial · 0 wrong | **36 complete · 3 partial · 1 wrong** |
+| Routing vs `expected_path` | 30 / 40 | 28 / 40 |
+| `must_cite` satisfied | 34 / 38 | **38 / 38** |
+| Quotes verified | 105/116 (91%) | 134/147 (91%) |
+| Latency | median 5.7 s | median 5.8 s |
+| Cost of the run | $1.26 | **~$1.17** |
+
+No systemic regression. Content quality sits in the same band as v4 — a hair
+better on completions — and the open citation-loss problem v4 flagged (4/40
+answers with zero citations) is gone this run: every `must_cite` item got its
+citation. The one new wrong answer is a routing/retrieval story, the same
+mechanism this document already names for the v1/v2-era q20 and q32 failures,
+not a code regression.
+
+## Split by path taken
+
+| Path | Complete | Partial | Wrong |
+|---|---|---|---|
+| RAG (24 items) | 21 | 2 (q03, q20) | 1 (q23) |
+| Agent (16 items) | 15 | 1 (q32) | 0 |
+
+Retrieval remains the dominant lever, not generation — every failure below has
+the right fact sitting in the corpus; none is the model misreading an extract
+it had.
+
+## The failures, named
+
+- **q23 — wrong.** "What is the AI Act's staged timeline of application,
+  chapter by chapter?" The classifier routed this to RAG instead of the
+  expected `agent` path. Single-shot retrieval never surfaced **Article 113**
+  (`data/workspace/ai-act-en/document.md:4386`), which states the exact
+  chapter-by-chapter schedule the question asks for — it is in the corpus,
+  verified by grep. The model then answered *"the provided extracts do not
+  contain a chapter-by-chapter staged timeline"* — a confident false negative,
+  not a hedge. In v4 the same question landed on the `agent` path, which does
+  targeted multi-search, and got the correct table. Routing-classifier
+  stochasticity: the router is not deterministic, and a broad "give me the
+  full staged schedule" question needs the agent's ability to search
+  specifically for "Article 113" rather than relying on one vector+lexical
+  pass.
+
+- **q32 — partial.** "How do the AI Act's fines compare with the GDPR's?"
+  Routed correctly to `agent`, and the agent made 13 tool calls, but never
+  retrieved **GDPR Article 83(4)/(5)**
+  (`data/workspace/gdpr-en/document.md:3381,3395`), which holds the exact EUR
+  10M/2% and EUR 20M/4% figures. It found only Article 84 (the general
+  penalties clause) and honestly said it could not verify the GDPR numbers
+  rather than guessing — correct behavior under uncertainty, but the answer is
+  half the question. In v4 the same question, same corpus, succeeded (citing
+  `gdpr-it`). Pure run-to-run retrieval variance on the agent's
+  `semantic_search`.
+
+- **q20 — partial.** "What is excluded from the scope of the AI Act?" Routed
+  to RAG (expected `agent`). Answer covers the military/defence exclusion and
+  the judicial/election carve-outs, but never mentions the scientific-research
+  exclusion or the personal-non-professional-use exclusion — both in the
+  corpus (q13, elsewhere in this same run, cites the scientific-research
+  exclusion correctly from the identical chunk). Same failure shape v4
+  documented for this exact item.
+
+- **q03 — partial.** "From what date does the AI Act apply in general?"
+  Answer gives "2 August 2026" correctly but omits the staged exceptions
+  (Chapters I/II from Feb 2025, Article 6(1) from 2027) that the reference
+  wants. Unchanged from v4 — the same partial v4's own writeup names as graded
+  strictly.
+
+## Routing
+
+12 mismatches against `expected_path` (v4 had 10). The two new ones, both
+classifier flips: **q23** (agent→rag, the one that broke) and **q26**
+(agent→rag, content held up fine anyway). No pattern change in the router
+code — this is the classifier's inherent run-to-run variance, already the
+known behavior documented above under **Routing**.
+
+## What this says to do next
+
+1. **q23 is the one that matters.** It repeats the exact failure mode this
+   document already diagnosed for v1/v2 (a broad question landing on RAG's
+   single retrieval pass instead of the agent's targeted search) — not a new
+   bug, but a live demonstration that router misclassification has a real,
+   visible cost. Nothing to fix in code from one occurrence; worth watching if
+   it recurs.
+2. **`raw_citations` still is not recorded in transcripts** — still the same
+   open item from v4. It is what would let a future run tell a genuine
+   retrieval miss (q23) apart from a citation-formatting bug at a glance,
+   instead of grepping the workspace by hand.
+3. **The empty-DB incident needed no code fix** — only republishing the
+   corpus. This run confirms the recovery: `must_cite` went from 34/38 to
+   38/38, and nothing structural moved.
+
 # v4 — the agent could not read its own map
 
 Run of 2026-08-12, all 40 scenarios, no escalation model.

@@ -6,7 +6,7 @@ import { Citation } from "@/lib/api";
 
 function PlainLink({ children, href }: { children?: React.ReactNode; href?: string }) {
   return (
-    <a href={href} target="_blank" rel="noreferrer" className="text-amber-700 underline">
+    <a href={href} target="_blank" rel="noreferrer" className="text-[var(--verifera-purple)] underline">
       {children}
     </a>
   );
@@ -120,7 +120,7 @@ function CitationMarker({
         title={`${citation.title ?? citation.doc_id}${where}\n\n${citation.quote}`}
         className={`rounded px-1 py-0.5 text-[0.65rem] font-medium leading-none transition-colors ${
           citation.verified
-            ? "text-emerald-700 hover:bg-emerald-100"
+            ? "text-[var(--verifera-teal)] hover:bg-[var(--verifera-teal-soft)]"
             : "text-amber-700 hover:bg-amber-100"
         }`}
       >

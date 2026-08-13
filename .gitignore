@@ -30,6 +30,7 @@ htmlcov/
 # JavaScript / TypeScript
 node_modules/
 .next/
+frontend/public/pdf.worker.min.mjs
 dist/
 build/
 coverage/

@@ -18,13 +18,13 @@ export type PackInfo = {
 };
 
 export const FALLBACK_PACK: PackInfo = {
-  name: "unknown",
-  title: "Document Assistant",
+  name: "Verifera",
+  title: "Verifera",
   description: "",
   locale: "en",
-  heading: "Document Assistant",
-  tagline: "",
-  placeholder: "Ask a question…",
+  heading: "Verifera",
+  tagline: "A verifiable document agent for your knowledge base.",
+  placeholder: "Ask a question...",
   suggestions: [],
 };
 

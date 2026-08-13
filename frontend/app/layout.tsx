@@ -15,9 +15,9 @@ const geistMono = Geist_Mono({
 // Static because Next renders <head> on the server; the in-page heading comes
 // from the active domain pack at runtime (lib/pack.ts).
 export const metadata: Metadata = {
-  title: "Document Assistant",
+  title: "Verifera",
   description:
-    "Grounded answers over a document corpus, with every claim cited back to the original.",
+    "A verifiable document agent for your knowledge base.",
 };
 
 export default function RootLayout({

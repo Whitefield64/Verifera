@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import Chat, { Message } from "@/components/Chat";
 import Viewer, { OpenDoc, ViewerTarget } from "@/components/Viewer";
 import { Citation, DocInfo, fetchDocuments, streamChat, ToolEvent } from "@/lib/api";
@@ -174,22 +175,39 @@ export default function Home() {
     );
   }
 
+  const domainLabel = pack.heading && pack.heading !== "Verifera" ? pack.heading : null;
+
   return (
-    <div className="flex h-screen flex-col">
-      <header className="flex items-center justify-between border-b border-neutral-200 bg-white px-4 py-2.5">
-        <div className="flex items-baseline gap-2">
-          <h1 className="text-sm font-semibold tracking-wide">{pack.heading}</h1>
-          {pack.tagline && (
-            <span className="text-xs text-neutral-500">{pack.tagline}</span>
-          )}
+    <div className="flex h-screen flex-col bg-[#fbfbfd] text-[#16141f]">
+      <header className="flex min-h-16 items-center border-b border-[var(--verifera-line)] bg-white px-4 py-2.5">
+        <div className="flex min-w-0 items-center gap-3">
+          <Image
+            src="/verifera-logo.png"
+            alt="Verifera"
+            width={40}
+            height={40}
+            className="h-10 w-10 shrink-0 object-contain"
+          />
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+              <h1 className="text-base font-semibold leading-tight tracking-wide text-[#21144f]">
+                Verifera
+              </h1>
+              {domainLabel && (
+                <span className="truncate text-xs font-medium text-[var(--verifera-ink-muted)]">
+                  {domainLabel}
+                </span>
+              )}
+            </div>
+            <p className="truncate text-xs leading-5 text-[var(--verifera-ink-muted)]">
+              A verifiable document agent for your knowledge base.
+            </p>
+          </div>
         </div>
-        <span className="text-[10px] uppercase tracking-wider text-neutral-400">
-          {pack.name}
-        </span>
       </header>
       <div ref={layoutRef} className="flex min-h-0 flex-1">
         <div
-          className="relative shrink-0 border-r border-neutral-200 bg-neutral-50"
+          className="relative shrink-0 border-r border-[var(--verifera-line)] bg-[#f7f6fb]"
           style={{ width: chatWidth }}
         >
           <Chat
@@ -209,7 +227,7 @@ export default function Home() {
             tabIndex={0}
             onPointerDown={handleResizePointerDown}
             onKeyDown={handleResizeKeyDown}
-            className="absolute inset-y-0 -right-1 z-10 w-2 cursor-col-resize outline-none after:absolute after:inset-y-0 after:left-1/2 after:w-px after:-translate-x-1/2 after:bg-transparent hover:after:bg-amber-500 focus:after:bg-amber-500"
+            className="absolute inset-y-0 -right-1 z-10 w-2 cursor-col-resize outline-none after:absolute after:inset-y-0 after:left-1/2 after:w-px after:-translate-x-1/2 after:bg-transparent hover:after:bg-[var(--verifera-teal)] focus:after:bg-[var(--verifera-teal)]"
           />
         </div>
         <div className="min-w-0 flex-1">

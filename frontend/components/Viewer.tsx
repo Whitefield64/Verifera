@@ -35,14 +35,14 @@ export default function Viewer({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center gap-1 overflow-x-auto border-b border-neutral-200 bg-neutral-50 px-2 pt-2">
+      <div className="flex items-center gap-1 overflow-x-auto border-b border-[var(--verifera-line)] bg-[#f7f6fb] px-2 pt-2">
         {openDocs.map((doc) => (
           <div
             key={doc.docId}
             className={`flex shrink-0 cursor-pointer items-center gap-2 rounded-t-lg border border-b-0 px-3 py-1.5 text-xs ${
               doc.docId === activeId
-                ? "border-neutral-300 bg-white font-medium text-neutral-900"
-                : "border-transparent bg-neutral-100 text-neutral-500 hover:bg-neutral-200"
+                ? "border-[var(--verifera-line)] bg-white font-medium text-[#21144f]"
+                : "border-transparent bg-[var(--verifera-purple-soft)] text-[var(--verifera-ink-muted)] hover:bg-white"
             }`}
             onClick={() => onSelect(doc.docId)}
             title={doc.title}

@@ -20,7 +20,7 @@ export default function ActivityTrail({
       <div className="space-y-1">
         <TrailRows activity={activity} live />
         <div className="flex items-center gap-2 py-0.5 text-xs text-neutral-500">
-          <span className="h-3 w-3 shrink-0 animate-spin rounded-full border border-neutral-300 border-t-amber-500" />
+          <span className="h-3 w-3 shrink-0 animate-spin rounded-full border border-neutral-300 border-t-[var(--verifera-teal)]" />
           {statusLabel(activity)}
         </div>
       </div>

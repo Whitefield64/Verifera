@@ -1,8 +1,15 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #fbfbfd;
+  --foreground: #16141f;
+  --verifera-purple: #3a18a6;
+  --verifera-purple-soft: #f2efff;
+  --verifera-purple-ring: #7657ff;
+  --verifera-teal: #08c6a4;
+  --verifera-teal-soft: #e8fbf7;
+  --verifera-ink-muted: #6f6a7c;
+  --verifera-line: #e8e4f1;
 }
 
 @theme inline {
@@ -15,20 +22,20 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
 }
 
 /* overlay disegnato sui bbox delle citazioni nel PDF viewer */
 .citation-highlight {
-  background: rgba(251, 191, 36, 0.35);
-  outline: 2px solid rgba(217, 119, 6, 0.9);
+  background: rgba(8, 198, 164, 0.24);
+  outline: 2px solid rgba(8, 198, 164, 0.82);
   border-radius: 2px;
   animation: citation-pulse 1.2s ease-in-out 2;
 }
 
 @keyframes citation-pulse {
   50% {
-    background: rgba(251, 191, 36, 0.6);
+    background: rgba(58, 24, 166, 0.16);
   }
 }
 
@@ -36,7 +43,7 @@ body {
 .streaming-cursor > :last-child::after {
   content: "▍";
   margin-left: 0.25rem;
-  color: #d97706;
+  color: var(--verifera-teal);
   animation: cursor-blink 1s step-start infinite;
 }
 
