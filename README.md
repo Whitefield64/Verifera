@@ -7,11 +7,18 @@ original PDF, or the highlighted span in the original HTML.
 A reference implementation, not a library: clone it, swap the domain pack,
 point it at your documents. The demo corpus is EU AI regulation.
 
-![Answer with verified citations next to the Official Journal PDF, with the cited recital highlighted](docs/images/citation-highlight.png)
+![Answer with a numbered inline citation next to the Official Journal PDF, with the cited recital highlighted](docs/images/citation-highlight.png)
 
-*Clicking a citation opens the original Official Journal PDF and highlights the
-exact passage the claim came from. Green chips passed quote verification against
-the stored source text; amber ones did not.*
+*The footnote number sits on the sentence it supports. Clicking it — or its entry
+in the reference list — opens the original Official Journal PDF and highlights
+the exact passage the claim came from. Green passed quote verification against
+the stored source text; amber did not.*
+
+![The end of a long comparison answer, with its numbered reference list](docs/images/agent-answer.png)
+
+*The same contract on a long answer. Numbers are assigned in the order the
+reader meets them, and the reference list is ordered to match — so a claim near
+the end still resolves to one entry rather than to a list of file names.*
 
 ## Why this exists
 
@@ -20,9 +27,17 @@ not verification, it is a citation-shaped object. Three things are different
 here:
 
 **The citation contract is load-bearing.** Every answer emits
-`{doc_id, page, bbox, chunk_text, quote}`, and each quote is then checked
-against the stored chunk text. Citations that fail come back `verified: false`
-and render differently. A model that paraphrases its own source gets caught.
+`{doc_id, title, marker, page, bbox, chunk_text, quote}`, and each quote is then
+checked against the stored chunk text. Citations that fail come back
+`verified: false` and render differently. A model that paraphrases its own
+source gets caught.
+
+**Claims are cited where they are made.** The model marks each sentence with the
+chunk it rests on; the backend turns those marks into footnote numbers, in order
+of first appearance, and orders the reference list to match. In a long answer —
+an obligation matrix, a penalty table — every row carries the number of the
+provision it came from, instead of a train of file names at the end that fits no
+particular sentence.
 
 **The viewer shows the original artifact, not a reconstruction.** PDFs are drawn
 by PDF.js with overlays on the stored bounding boxes; HTML and DOCX originals

@@ -112,7 +112,11 @@ function MessageBubble({
         />
       )}
       <div className={`text-sm ${message.streaming && message.content ? "streaming-cursor" : ""}`}>
-        <Markdown text={message.content} />
+        <Markdown
+          text={message.content}
+          citations={message.citations}
+          onCitationClick={onCitationClick}
+        />
       </div>
       {message.error && (
         <div className="mt-2 rounded bg-red-50 p-2 text-xs text-red-700">
@@ -120,25 +124,73 @@ function MessageBubble({
         </div>
       )}
       {!!message.citations?.length && (
-        <div className="mt-3 flex flex-wrap gap-1.5 border-t border-neutral-100 pt-2">
-          {message.citations.map((citation, i) => (
-            <button
-              key={`${citation.chunk_id}-${i}`}
-              onClick={() => onCitationClick(citation)}
-              title={citation.quote}
-              className={`rounded-full border px-2 py-0.5 text-xs transition-colors ${
-                citation.verified
-                  ? "border-emerald-200 bg-emerald-50 text-emerald-800 hover:border-emerald-400"
-                  : "border-amber-300 bg-amber-50 text-amber-800 hover:border-amber-500"
-              }`}
-            >
-              [{i + 1}] {citation.doc_id}
-              {citation.page != null && ` · p.${citation.page}`}
-              {citation.verified ? " ✓" : " ⚠"}
-            </button>
-          ))}
-        </div>
+        <SourceList citations={message.citations} onCitationClick={onCitationClick} />
       )}
     </div>
   );
+}
+
+/** The reference section: one entry per cited passage, numbered to match the
+ *  markers in the prose. It is the only place the verbatim quote and the
+ *  verification result are visible without hovering, which is the product. */
+function SourceList({
+  citations,
+  onCitationClick,
+}: {
+  citations: Citation[];
+  onCitationClick: (citation: Citation) => void;
+}) {
+  return (
+    <div className="mt-3 space-y-1.5 border-t border-neutral-100 pt-2">
+      <div className="text-[10px] font-medium uppercase tracking-wider text-neutral-400">
+        {UI.sources}
+      </div>
+      {groupByMarker(citations).map((group) => {
+        const first = group[0];
+        return (
+          <button
+            key={first.chunk_id + first.marker}
+            onClick={() => onCitationClick(first)}
+            className="flex w-full gap-2 rounded px-1 py-0.5 text-left hover:bg-neutral-50"
+          >
+            <span className="w-4 shrink-0 pt-px text-right text-[11px] font-medium text-neutral-400">
+              {first.marker ?? "·"}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="flex items-baseline gap-1 text-xs text-neutral-700">
+                <span className="truncate">{first.title ?? first.doc_id}</span>
+                {first.page != null && (
+                  <span className="shrink-0 text-neutral-400">p.{first.page}</span>
+                )}
+                <span className={first.verified ? "text-emerald-600" : "text-amber-600"}>
+                  {first.verified ? "✓" : "⚠"}
+                </span>
+              </span>
+              {group.map((citation) => (
+                <span
+                  key={citation.quote}
+                  className="mt-0.5 block text-[11px] italic leading-snug text-neutral-500"
+                >
+                  “{citation.quote}”
+                </span>
+              ))}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Two quotes from one chunk are one place in the document, so they share a
+ *  number and a row. Citations arrive ordered by marker, so grouping runs of
+ *  equal markers is enough; the un-cited ones at the end each keep their own. */
+function groupByMarker(citations: Citation[]): Citation[][] {
+  const groups: Citation[][] = [];
+  for (const citation of citations) {
+    const last = groups[groups.length - 1];
+    if (last && citation.marker != null && last[0].marker === citation.marker) last.push(citation);
+    else groups.push([citation]);
+  }
+  return groups;
 }

@@ -13,7 +13,12 @@ export type BBox = {
 
 export type Citation = {
   doc_id: string;
+  /** Readable document title; falls back to doc_id when ingestion found none. */
+  title: string | null;
   chunk_id: string;
+  /** Footnote number in the answer text, null when the prose never cited it.
+   *  Citations arrive ordered by it. */
+  marker: number | null;
   page: number | null;
   bbox: BBox | null;
   bboxes: BBox[] | null;
@@ -53,8 +58,8 @@ export function docFileUrl(docId: string): string {
   return `${API_URL}/api/documents/${encodeURIComponent(docId)}/file`;
 }
 
-/** Estrazione testuale (Docling, già in workspace): fallback quando l'originale
- *  non è renderizzabile senza eseguire script lato client (vedi HtmlViewer). */
+/** Extracted text (Docling's, already in the workspace): the fallback for when
+ *  the original cannot render without client-side scripts (see HtmlViewer). */
 export function docTextUrl(docId: string): string {
   return `${API_URL}/api/documents/${encodeURIComponent(docId)}/text`;
 }

@@ -138,7 +138,8 @@ what got in front of it.
 
 ## Frontend
 
-Split view: chat left, document right. Clicking a citation opens the original
+Split view: chat left, document right. Clicking a footnote number in the answer,
+or its entry in the reference list under it, opens the original
 and highlights the passage — PDFs by drawing overlays on the stored bounding
 boxes, HTML and DOCX by serving the captured original inside a sandboxed iframe
 with no script execution and highlighting through the CSS Custom Highlight API.

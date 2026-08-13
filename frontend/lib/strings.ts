@@ -6,6 +6,7 @@
 export const UI = {
   send: "Send",
   errorPrefix: "Error:",
+  sources: "Sources",
   viewerEmpty: [
     "Click a citation in the chat to open the original document",
     "with the passage highlighted.",
