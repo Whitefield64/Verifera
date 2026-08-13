@@ -1,7 +1,0 @@
-# Optional: distributed tracing through Langfuse (self-hostable, open source).
-# Off unless LANGFUSE_PUBLIC_KEY / LANGFUSE_SECRET_KEY are set.
-# `langchain` is a thin meta-package in 1.x and is pulled only by this file,
-# because the Langfuse callback handler imports from it.
--r requirements.txt
-langfuse==4.14.3
-langchain==1.3.14

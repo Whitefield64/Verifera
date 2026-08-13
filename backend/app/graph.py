@@ -19,9 +19,7 @@ contract did not change when the orchestration did.
 
 import json
 import logging
-import os
 from collections.abc import Iterator
-from functools import lru_cache
 from time import monotonic
 from typing import Annotated, Any, TypedDict
 
@@ -482,27 +480,6 @@ def _elapsed_ms(state: ChatState) -> int:
     return round((monotonic() - state.get("started", monotonic())) * 1000)
 
 
-@lru_cache(maxsize=1)
-def _callbacks() -> tuple:
-    """Langfuse tracing, only when it is configured.
-
-    Off by default and opt-in through the environment: a public reference
-    implementation should not require an account with anyone to run. Langfuse
-    is self-hostable, so this stays open-source all the way down.
-    """
-    if not (os.getenv("LANGFUSE_PUBLIC_KEY") and os.getenv("LANGFUSE_SECRET_KEY")):
-        return ()
-    try:
-        from langfuse.langchain import CallbackHandler
-    except ImportError:
-        logger.warning(
-            "LANGFUSE_* is set but the tracing extra is not installed "
-            "(pip install -r backend/requirements-tracing.txt)"
-        )
-        return ()
-    return (CallbackHandler(),)
-
-
 def stream(compiled, message: str, history: list[dict[str, str]]) -> Iterator[tuple[str, dict]]:
     """Yield the same (event, payload) tuples the HTTP layer has always emitted."""
     final: dict[str, Any] = {}
@@ -512,7 +489,7 @@ def stream(compiled, message: str, history: list[dict[str, str]]) -> Iterator[tu
     for mode, payload in compiled.stream(
         {"message": message, "history": history},
         stream_mode=["custom", "values"],
-        config={"recursion_limit": 2 * hard_cap + 10, "callbacks": list(_callbacks())},
+        config={"recursion_limit": 2 * hard_cap + 10},
     ):
         if mode == "custom":
             yield payload

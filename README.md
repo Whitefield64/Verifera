@@ -176,8 +176,6 @@ snapshot; regulation changes, which is exactly why the fetcher exists.
 
 Python · FastAPI · Postgres + pgvector · Docling · LangGraph · Next.js +
 react-pdf · OpenAI for embeddings and generation, configurable per task.
-Tracing through Langfuse is opt-in and off by default — a public reference
-implementation should not require an account with anyone to run.
 
 ## Not here yet
 
