@@ -18,7 +18,11 @@ Everything else is negotiable. These are not:
    succeeded — chunks, embeddings, provenance and workspace together. A
    half-ingested document is worse than a missing one, because it answers.
 4. **Stable chunk ids.** Ids are derived from content, so re-ingesting a
-   document does not invalidate citations already shown to someone.
+   document does not invalidate citations already shown to someone. Stability
+   holds *within one environment*: different BLAS builds change Docling's layout
+   analysis, which changes the text a chunk contains and therefore its id. So
+   re-ingest in the image you ingested with, and read a `check-stability` failure
+   after an environment change as that change, not as a broken chunker.
 5. **Everything that touches answers goes through the evaluation set.**
 
 ## Storage, three ways

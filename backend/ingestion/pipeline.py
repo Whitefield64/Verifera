@@ -258,11 +258,11 @@ def check_stability(doc_id: str) -> bool:
     ]
 
     if recomputed == stored_ids:
-        print(f"{doc_id}: STABILE — {len(stored_ids)} chunk_id identici al re-parse")
+        print(f"{doc_id}: STABLE — {len(stored_ids)} chunk ids identical on re-parse")
         return True
     same = len(set(recomputed) & set(stored_ids))
     print(
-        f"{doc_id}: INSTABILE — {same}/{len(stored_ids)} in comune "
+        f"{doc_id}: UNSTABLE — {same}/{len(stored_ids)} in common "
         f"(db: {len(stored_ids)}, re-parse: {len(recomputed)})"
     )
     return False

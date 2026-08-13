@@ -120,22 +120,50 @@ def _group_sections(chunks: list[dict[str, Any]]) -> list[list[dict[str, Any]]]:
     return sections
 
 
-def _opening_line(section: list[dict[str, Any]], max_length: int = 90) -> str:
-    """First line that reads like the start of something.
+_LABEL_MAX_CHARS = 80
 
-    Chunk boundaries fall mid-sentence, so the very first line of a section can
-    begin with a comma. Prefer a line that starts like a title or a sentence,
-    and settle for the first one only if none does.
+
+def _is_label(line: str) -> bool:
+    """A line that names what follows instead of saying something itself.
+
+    Purely typographic — short, no sentence-ending punctuation, opens like a
+    title. Nothing here knows what an 'Article' is; the same rule finds the
+    numbered clauses of a regulation and the headings of a standard.
+    """
+    if not (6 <= len(line) <= _LABEL_MAX_CHARS):
+        return False
+    if line[-1] in ".,;:":
+        return False
+    if not any(character.isalpha() for character in line):
+        return False
+    return line[0].isupper() or line[0].isdigit()
+
+
+def _label_run(section: list[dict[str, Any]], max_length: int = 90) -> str:
+    """The first run of consecutive label lines in the section.
+
+    Publishers of legal texts routinely ship no heading markup at all — every
+    HTML document in the demo corpus has empty `headings` on all of its chunks
+    — and the number and the title of a provision then arrive as two ordinary
+    short lines in the body text. Taken together they are the only usable name
+    the section has.
     """
     fallback = ""
     for chunk in section:
-        for line in chunk["text"].splitlines():
-            line = " ".join(line.strip().lstrip("#").split())
-            if len(line) < 8:
+        run: list[str] = []
+        for raw in chunk["text"].splitlines():
+            line = " ".join(raw.strip().lstrip("#").split())
+            if not line:
                 continue
-            if line[0].isalnum() and (line[0].isupper() or line[0].isdigit()):
-                return line[:max_length].rstrip()
-            fallback = fallback or line[:max_length].rstrip()
+            if _is_label(line):
+                run.append(line)
+                continue
+            if len(run) >= 2:
+                return " › ".join(run)[:max_length].rstrip()
+            fallback = fallback or (run[0] if run else line[:max_length].rstrip())
+            run = []
+        if len(run) >= 2:
+            return " › ".join(run)[:max_length].rstrip()
     return fallback
 
 
@@ -143,11 +171,7 @@ def _section_title(section: list[dict[str, Any]], doc_title: str) -> str:
     for chunk in section:
         if chunk["headings"]:
             return " › ".join(chunk["headings"])
-    # Some publishers carry no heading markup at all — legal texts routinely
-    # style article titles as classed paragraphs — and every section would then
-    # inherit the document's own name, telling the agent nothing about which one
-    # to open. The opening line is the next best label.
-    return _opening_line(section) or doc_title
+    return _label_run(section) or doc_title
 
 
 def write_sections(doc_dir: Path, doc_title: str, chunks: list[dict[str, Any]]) -> int:
@@ -161,9 +185,20 @@ def write_sections(doc_dir: Path, doc_title: str, chunks: list[dict[str, Any]]) 
         shutil.rmtree(sections_dir)
     sections_dir.mkdir(parents=True)
 
+    grouped = _group_sections(chunks)
+    # A long run under one heading — a regulation's recitals arrive as a single
+    # "Whereas:" — is split by the size cap into sections a reader cannot tell
+    # apart. Eleven identical rows in the index are eleven rows the agent has to
+    # open at random, so the repeats say which part they are.
+    titles = [_section_title(section, doc_title) for section in grouped]
+    repeated = {title: titles.count(title) for title in set(titles) if titles.count(title) > 1}
+    position: dict[str, int] = {}
+
     index_entries = []
-    for number, section in enumerate(_group_sections(chunks), 1):
-        title = _section_title(section, doc_title)
+    for number, (section, title) in enumerate(zip(grouped, titles), 1):
+        if title in repeated:
+            position[title] = position.get(title, 0) + 1
+            title = f"{title} ({position[title]}/{repeated[title]})"
         filename = f"{number:02d}-{_slug(title)}.md"
         parts = [f"# {title}\n"]
         for chunk in section:
