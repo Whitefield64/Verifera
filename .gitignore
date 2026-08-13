@@ -40,13 +40,26 @@ logs/
 .cache/
 tmp/
 temp/
+.playwright-mcp/
 
 # AI coding tools (local-only configuration)
-.claude/
-CLAUDE.md
+.claude/settings.local.json
+.claude/**/.venv/
 .codex/
 .agents/
 AGENTS.md
+CLAUDE.md
+.claude/
+
+# Personal working notes: never published.
+docs/interno/
+
+# Benchmark outputs. Keep experiment transcripts local until a final run is
+# selected for publication.
+benchmark/results/*.json
+benchmark/results/*.jsonl
+benchmark/results/query-embeddings-cache.json
+!benchmark/results/.gitkeep
 
 # Corpus artifacts — all regenerable with `python -m corpus sync` + `python -m ingestion ingest`.
 # data/manifest.json IS tracked: it is the corpus map, and the checksums make ingestion auditable.
