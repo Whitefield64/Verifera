@@ -4,15 +4,16 @@ import json
 
 import pytest
 
+from app import corpus_manifest
 from app.config import settings
-from app.main import _DOC_ID, _source_urls, _with_base_href
+from app.main import _DOC_ID, _with_base_href
 
 
 @pytest.fixture(autouse=True)
 def _clear_cache():
-    _source_urls.cache_clear()
+    corpus_manifest.reset()
     yield
-    _source_urls.cache_clear()
+    corpus_manifest.reset()
 
 
 @pytest.fixture()

@@ -8,8 +8,8 @@ a bug.
 Everything else is negotiable. These are not:
 
 1. **The citation contract is the interface.** Every answer emits
-   `{doc_id, page, bbox, chunk_text, quote}`. If this breaks, nothing else
-   matters — the product is the verifiability, not the prose.
+   `{doc_id, title, marker, page, bbox, chunk_text, quote}`. If this breaks,
+   nothing else matters — the product is the verifiability, not the prose.
 2. **Grounding happens upstream, rendering downstream.** Retrieval and
    orchestration are responsible for citation fidelity: tools return source
    identifiers, and generation may only cite what it actually read. The
@@ -80,8 +80,39 @@ parts worth reading and the parts that must not change when a framework does.
 - **Agent path** — a tool loop over the workspace. Search is for orientation;
   the point is that the agent *opens* things, so what it consulted is known
   rather than inferred.
-- **finalize** normalizes citations and verifies every quote against the stored
-  chunk text.
+- **finalize** normalizes citations, verifies every quote against the stored
+  chunk text, and numbers the references the model left in its prose.
+
+### Inline references
+
+The model marks the sentence it is citing by writing the chunk id in double
+brackets right after it. `citations.number_inline_refs` replaces each one with a
+footnote number and orders the citations to match, so the reader sees `¹` where
+the claim is made instead of a list of file names at the end of a long answer.
+
+Numbering is by **order of first appearance in the prose**, which is what makes
+it work while streaming: a reference's number depends only on the text before
+it, so `citations.render_stream` can assign it as the reference closes, long
+before the citation array exists. The frontend renders a number it cannot yet
+resolve as inert and grey, and it becomes clickable when the citations land — no
+reflow, no burst of numbers at the end.
+
+Two rules make the degradation quiet. A reference whose citation did not survive
+verification is left in place for `agent_output.strip_inline_chunk_refs` to
+remove, and numbering skips it rather than spending a number on it: the reader
+never meets a gap in the sequence or a number pointing at someone else's source.
+A citation the prose never referenced keeps its place at the end of the list,
+unnumbered, rather than being dropped.
+
+Citations sharing a chunk share a number. The reference identifies the passage,
+and the passage is what gets highlighted, so two quotes from one chunk are one
+place in the document — the frontend renders them as one entry with two quotes.
+
+The readable document name under a citation comes from `data/manifest.json`, not
+from the database: ingestion derives its title from the document's own content,
+which for a legal corpus yields `2024/1689` or the doc_id itself. Correct as an
+internal label, useless under a citation. `app/corpus_manifest.py` is the
+request path's read-only view of that file.
 
 ### Why the agent path exists
 

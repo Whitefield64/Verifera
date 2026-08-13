@@ -15,7 +15,11 @@ class ChatRequest(BaseModel):
 
 class Citation(BaseModel):
     doc_id: str
+    title: str | None = None
     chunk_id: str
+    # Footnote number in the answer text, or None when the prose never
+    # referenced this source. Citations arrive ordered by it.
+    marker: int | None = None
     page: int | None
     bbox: dict[str, Any] | None
     bboxes: list[dict[str, Any]] | None = None

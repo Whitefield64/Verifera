@@ -1,4 +1,3 @@
-import functools
 import html
 import json
 import re
@@ -9,7 +8,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response, StreamingResponse
 
-from app import chat as chat_service, db, graph, pack
+from app import chat as chat_service, corpus_manifest, db, graph, pack
 from app.config import settings
 from app.schemas import ChatRequest, ChatResponse
 
@@ -24,17 +23,6 @@ _BASE_TAG = re.compile(rb"<base[\s>]", re.IGNORECASE)
 _DOC_ID = re.compile(r"[A-Za-z0-9_-]+")
 
 
-@functools.lru_cache(maxsize=1)
-def _source_urls() -> dict[str, str]:
-    """doc_id -> source_url from the corpus manifest (best-effort, never read by
-    ingestion): used only so the viewer renders an HTML original the way its
-    source site does, when the document carries no <base href> of its own."""
-    if not settings.manifest_path.is_file():
-        return {}
-    entries = json.loads(settings.manifest_path.read_text(encoding="utf-8"))
-    return {entry["id"]: entry["source_url"] for entry in entries if entry.get("source_url")}
-
-
 def _with_base_href(content: bytes, doc_id: str) -> bytes:
     """Inject <base href> into scraped HTML that lacks one (e.g. Next.js blog
     pages with no server-rendered <base>): without it the sandboxed iframe
@@ -42,7 +30,7 @@ def _with_base_href(content: bytes, doc_id: str) -> bytes:
     instead of the source site, and the original renders blank/broken."""
     if _BASE_TAG.search(content, endpos=4096):
         return content
-    source_url = _source_urls().get(doc_id)
+    source_url = corpus_manifest.source_urls().get(doc_id)
     if not source_url:
         return content
     base_tag = f'<base href="{html.escape(source_url, quote=True)}">'.encode()

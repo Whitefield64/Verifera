@@ -154,13 +154,22 @@ def build(pool: ConnectionPool):
             write(("delta", {"text": answer}))
             return {"answer": answer, "raw_citations": [], "model": settings.chat_model}
 
+        # The condensed question, not the original: retrieval already ran on it,
+        # and answering a different sentence than the one the extracts were
+        # chosen for is how a follow-up gets answered off its own referent. The
+        # history is trimmed to six turns, so "and for EU institutions?" cannot
+        # be relied on to still carry what it points at.
         user_message = (
             f"Knowledge base extracts:\n\n{rag.format_context(chunks)}\n\n"
-            f"Question: {state['message']}"
+            f"Question: {state['query']}"
         )
         buffer, emitted, usage = "", 0, {}
+        # Footnote numbers are assigned as the references close, so the reader
+        # sees them grow with the text instead of appearing all at once at the
+        # end. finalize renumbers the same way over the finished answer.
+        numbers: dict[str, int] = {}
         for piece in llm.stream_json(
-            pack.prompt("answer"),
+            pack.prompt("answer", inline_ref=citations.INLINE_REF_FORMAT),
             [*rag.trimmed_history(state.get("history") or []),
              {"role": "user", "content": user_message}],
             "rag_answer",
@@ -168,7 +177,7 @@ def build(pool: ConnectionPool):
             usage=usage,
         ):
             buffer += piece
-            so_far = rag.partial_answer(buffer)
+            so_far = citations.render_stream(rag.partial_answer(buffer), numbers)
             if len(so_far) > emitted:
                 write(("delta", {"text": so_far[emitted:]}))
                 emitted = len(so_far)
@@ -189,6 +198,7 @@ def build(pool: ConnectionPool):
             "agent",
             max_tool_calls=settings.agent_max_tool_calls,
             sources_marker=agent_output.SOURCES_MARKER,
+            inline_ref=citations.INLINE_REF_FORMAT,
         )
 
         history = list(state.get("messages") or [])
@@ -295,18 +305,29 @@ def _reasoning_of(response: Any) -> str:
 
 def _finalize_rag(state: ChatState) -> dict[str, Any]:
     chunks = state.get("chunks") or []
-    built = citations.build_citations(state.get("raw_citations") or [], chunks)
+    raw = state.get("raw_citations") or []
+    built = citations.build_citations(raw, chunks)
+    answer, built = citations.number_inline_refs(state.get("answer", ""), built)
+    # Whatever number_inline_refs left behind pointed at nothing citable.
+    unsupported = _unsupported_refs(answer)
+    answer = agent_output.strip_inline_chunk_refs(answer) or pack.message("no_context")
     meta = {
         "model": state.get("model", settings.chat_model),
         "query_used": state.get("query", ""),
         "retrieved_chunk_ids": [chunk.chunk_id for chunk in chunks],
         "elapsed_ms": _elapsed_ms(state),
         "router": state.get("route", {}),
+        # Same meaning as on the agent path: cited something it was never
+        # shown. An answer with no citations is otherwise two different bugs
+        # wearing one face — a model that emitted none, and a model whose ids
+        # were all wrong and got dropped in silence.
+        "citations_dropped_unseen": _dropped_unseen(raw, {c.chunk_id for c in chunks}),
+        "inline_refs_unsupported": unsupported,
         "usage": state.get("usage", {}),
     }
     if error := state.get("agent_error"):
         meta["agent_fallback_error"] = error
-    return {"citations": built, "path": "rag", "meta": meta}
+    return {"answer": answer, "citations": built, "path": "rag", "meta": meta}
 
 
 def _finalize_agent(pool: ConnectionPool, state: ChatState) -> dict[str, Any]:
@@ -317,14 +338,21 @@ def _finalize_agent(pool: ConnectionPool, state: ChatState) -> dict[str, Any]:
     # actually exposed during this run.
     seen = set(state.get("seen_chunk_ids") or [])
     kept = [c for c in raw if isinstance(c, dict) and c.get("chunk_id") in seen]
-    answer = agent_output.strip_inline_chunk_refs(answer) or pack.message("no_answer")
 
+    dropped = _dropped_unseen(raw, seen)
     ordered = list(dict.fromkeys(c["chunk_id"] for c in kept))
     with pool.connection() as conn:
         chunks = retrieval.fetch_by_ids(conn, ordered)
+    # Number first, strip second: numbering claims the references that resolve
+    # to a verified citation, and the stripper clears whatever is left — the
+    # ones the model invented, and the bare ids it leaks despite instructions.
+    built = citations.build_citations(kept, chunks)
+    answer, built = citations.number_inline_refs(answer, built)
+    unsupported = _unsupported_refs(answer)
+    answer = agent_output.strip_inline_chunk_refs(answer) or pack.message("no_answer")
     return {
         "answer": answer,
-        "citations": citations.build_citations(kept, chunks),
+        "citations": built,
         "path": "agent",
         "meta": {
             "model": state.get("model", settings.agent_model),
@@ -332,11 +360,32 @@ def _finalize_agent(pool: ConnectionPool, state: ChatState) -> dict[str, Any]:
             "elapsed_ms": _elapsed_ms(state),
             "router": state.get("route", {}),
             "tool_calls": state.get("tool_calls", 0),
-            "citations_dropped_unseen": len(raw) - len(kept),
+            "citations_dropped_unseen": dropped,
+            "inline_refs_unsupported": unsupported,
             "answer_format": method,
             "usage": state.get("usage", {}),
         },
     }
+
+
+def _dropped_unseen(raw: list[Any], available: set[str]) -> int:
+    """Citations pointing at a chunk the model was never shown."""
+    return sum(
+        1 for c in raw if isinstance(c, dict) and c.get("chunk_id") not in available
+    )
+
+
+def _unsupported_refs(numbered_answer: str) -> int:
+    """Sentences the model marked as cited whose citation did not survive.
+
+    Counted after numbering and before stripping: numbering claims every
+    reference that resolved, so what is left is a claim about to lose its
+    support on the way to the reader. The more damaging of the two silent
+    drops, and the one nothing used to record. Counted by the loose pattern,
+    not the canonical one — a counter blind to malformed references would have
+    missed both of the real cases this exists to catch.
+    """
+    return len(citations.UNRESOLVED_REF.findall(numbered_answer))
 
 
 def _elapsed_ms(state: ChatState) -> int:
