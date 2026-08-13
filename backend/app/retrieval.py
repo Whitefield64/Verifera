@@ -40,7 +40,10 @@ FROM chunks c JOIN documents d USING (doc_id)
 WHERE c.chunk_id = ANY(%(chunk_ids)s) AND d.status = 'PUBLISHED'
 """
 
-_MULTISPACE = re.compile(r"\s+")
+# Jaccard over word tokens, above which two chunks are the same passage. 0.6
+# separated the HTML/PDF pairs of the same article from genuinely different
+# articles of the same act, which share vocabulary but not this much of it.
+NEAR_DUPLICATE = 0.6
 
 
 @dataclass
@@ -73,30 +76,40 @@ def rrf_fuse(rankings: Sequence[Sequence[str]], k0: int = 60) -> dict[str, float
     return scores
 
 
+def _tokens(text: str) -> frozenset[str]:
+    return frozenset(_TOKEN.findall(text.lower()))
+
+
 def select_top(
     scores: dict[str, float],
     k: int,
     per_doc_cap: int,
     text_of: dict[str, str] | None = None,
 ) -> list[str]:
-    """Top-k from the fused ranking. With a cap, at most N chunks per document
-    (multi-document questions must not be starved by a single one); with
-    text_of, text that is identical across documents (boilerplate repeated in
-    many files) counts once and the best-ranked copy wins."""
+    """Top-k from the fused ranking. With a cap, at most N chunks per document;
+    with text_of, a passage that repeats across documents counts once and the
+    best-ranked copy wins.
+
+    Near-duplicates, not identical ones: an exact fingerprint missed the case
+    that matters here, the same act ingested twice as HTML and as PDF. The
+    extractions differ in hyphenation, list prefixes and whitespace, so they
+    survived exact matching and took 9% of every context between them.
+    """
     top: list[str] = []
     per_doc: dict[str, int] = {}
-    seen_texts: set[str] = set()
+    kept: list[frozenset[str]] = []
     for chunk_id in sorted(scores, key=lambda cid: scores[cid], reverse=True):
         doc_id = chunk_id.split("#", 1)[0]
         if per_doc_cap and per_doc.get(doc_id, 0) >= per_doc_cap:
             continue
         if text_of is not None:
-            fingerprint = (
-                _MULTISPACE.sub(" ", text_of.get(chunk_id, chunk_id)).strip().lower()
-            )
-            if fingerprint in seen_texts:
+            signature = _tokens(text_of.get(chunk_id, chunk_id))
+            if signature and any(
+                len(signature & other) / len(signature | other) > NEAR_DUPLICATE
+                for other in kept
+            ):
                 continue
-            seen_texts.add(fingerprint)
+            kept.append(signature)
         per_doc[doc_id] = per_doc.get(doc_id, 0) + 1
         top.append(chunk_id)
         if len(top) == k:

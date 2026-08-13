@@ -155,7 +155,12 @@ def semantic_search(run: ToolRun, query: str) -> dict[str, Any]:
         return {"error": "empty query"}
     query_vector = llm.embed([query])[0]
     with run.pool.connection() as conn:
-        chunks = retrieval.hybrid_search(conn, query, query_vector, k=8, per_doc_cap=2)
+        # No per-document cap. A cap of 2 hid the operative article behind the
+        # first two chunks of the act the agent was already reading: on the
+        # penalties question it surfaced Article 100 and never Article 99,
+        # across thirteen tool calls. k stays at 8 — measured, going higher
+        # surfaced nothing more, so this costs no extra tokens per call.
+        chunks = retrieval.hybrid_search(conn, query, query_vector, k=8, per_doc_cap=0)
     results = []
     for chunk in chunks:
         run.seen_chunk_ids.add(chunk.chunk_id)

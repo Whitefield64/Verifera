@@ -25,11 +25,18 @@ class Settings(BaseSettings):
     # in db/schema.sql. Changing the model without changing this fails on insert.
     embed_dim: int = 1536
 
-    # tuned against the evaluation set: doc-level coverage (tools/retrieval_eval)
-    # plus content review — a cap of 2 starved single-document detail questions
-    top_k: int = 12
-    rrf_pool: int = 50
-    per_doc_cap: int = 3  # max chunks per document in the top-k; 0 = no limit
+    # Tuned against the evaluation set with passage-level ground truth: for the
+    # 15 measured questions the passage holding the answer reached the model
+    # 1/15 of the time at k=12/cap=3, and 10/15 at these values.
+    #
+    # per_doc_cap is 0 on purpose. A cap of 3 was flat in k — raising top_k
+    # changed nothing at all — because almost every question is about one act,
+    # and the cap throttled that act while its first three chunks were recitals.
+    # The starvation it guarded against does not appear at this k: doc-level
+    # coverage (tools/retrieval_eval) is 37/38 either way.
+    top_k: int = 16
+    rrf_pool: int = 80
+    per_doc_cap: int = 0  # max chunks per document in the top-k; 0 = no limit
     max_chunk_tokens: int = 512
 
     # agent path

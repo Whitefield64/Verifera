@@ -1,10 +1,10 @@
-"""Valutazione retrieval-only contro i must_cite del benchmark, senza chiamate chat.
+"""Retrieval-only evaluation against the benchmark's must_cite, no chat calls.
 
-Uso (da root repo, PYTHONPATH=backend):
+Usage (from the repo root, PYTHONPATH=backend):
     python -m tools.retrieval_eval [--k 8] [--pool 30] [--per-doc-cap 0] [--verbose]
 
-Le embedding delle 40 domande sono cachate su file: le iterazioni successive
-costano zero. La coverage è calcolata sui doc_id dei chunk nei top-k.
+The questions' embeddings are cached on disk, so every iteration after the first
+costs nothing. Coverage is computed over the doc_ids of the top-k chunks.
 """
 
 import argparse
@@ -16,7 +16,8 @@ from app import db, llm, retrieval
 from app.config import settings
 
 ROOT = Path(__file__).resolve().parents[2]
-SCENARIOS = ROOT / "benchmark" / "benchmark.jsonl"
+# The evaluation set lives in the pack, next to the prompts it is measuring.
+SCENARIOS = settings.pack_dir / "benchmark.jsonl"
 CACHE = ROOT / "benchmark" / "results" / "query-embeddings-cache.json"
 
 
@@ -63,7 +64,7 @@ def main() -> None:
     per_path: dict[str, list[int]] = {
         "rag": [0, 0, 0],
         "agent": [0, 0, 0],
-    }  # full, any, tot
+    }  # full, any, total
     misses = []
     with db.connect() as conn:
         for item in items:
@@ -97,15 +98,15 @@ def main() -> None:
 
     total = len(items)
     print(f"k={args.k} pool={args.pool} per_doc_cap={args.per_doc_cap}")
-    print(f"  tutti i must_cite nei top-k: {full}/{total}")
-    print(f"  almeno uno nei top-k:        {partial}/{total}")
+    print(f"  every must_cite in the top-k: {full}/{total}")
+    print(f"  at least one in the top-k:    {partial}/{total}")
     for path, (path_full, path_any, path_total) in per_path.items():
         print(
-            f"    [{path}] tutti: {path_full}/{path_total}, almeno uno: {path_any}/{path_total}"
+            f"    [{path}] every: {path_full}/{path_total}, at least one: {path_any}/{path_total}"
         )
     if args.verbose:
         for item_id, path, must, got in misses:
-            print(f"  MISS totale {item_id} [{path}]: attesi {must}, top-k da {got}")
+            print(f"  TOTAL MISS {item_id} [{path}]: expected {must}, top-k from {got}")
 
 
 if __name__ == "__main__":
