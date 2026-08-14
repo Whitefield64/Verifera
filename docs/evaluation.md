@@ -67,31 +67,41 @@ different figure, the carve-out that must appear.
 
 ## The last published run
 
-[`example/runs/v4-eu-ai-act.json`](../example/runs/v4-eu-ai-act.json), 40
-scenarios against the demo corpus:
+[`example/runs/v5-eu-ai-act.json`](../example/runs/v5-eu-ai-act.json), 40
+scenarios against the demo corpus, measured on this layout:
 
-| | |
-|---|---|
-| Quotes verified | 105 / 116 (91%) |
-| Expected citations satisfied | 34 / 38 |
-| Routing matched expectation | 30 / 40 |
-| Path taken | 22 RAG, 18 agent |
-| Latency | 5.7 s median, 37.1 s max |
-| Tokens | 1.47 M in, 34 k out |
-| Cost | ~$1.26 |
+| | v4 | v5 |
+|---|---|---|
+| Quotes verified | 105 / 116 (91%) | **133 / 141 (94%)** |
+| Expected citations satisfied | 34 / 38 | **36 / 38** |
+| Answers with no citation | 4 | **2** |
+| Routing matched expectation | 30 / 40 | 30 / 40 |
+| Path taken | 22 RAG, 18 agent | 24 RAG, 16 agent |
+| Latency | 5.7 s / 37.1 s max | **5.1 s** / 48.0 s max |
+| Tokens | 1.47 M in, 34 k out | **1.27 M in**, 36 k out |
 
-Read by hand: 35 answers complete, 5 partial, 0 wrong.
+v4 is kept alongside because the comparison is the point, but the two are not
+strictly like for like: v5 was measured after the EU acts moved to the Cellar
+endpoint, whose text is cleaner than the portal HTML v4 saw. Chunk boundaries,
+and therefore chunk ids, differ between the two.
 
-Two things worth reading off that table rather than around it. Four answers came
-back with no citations at all — the system abstains more readily than it
-fabricates, which is the failure mode to prefer, but it is a failure mode. And
-the ten routing misses split unevenly: questions sent to the agent when RAG would
-have done still came back complete, while questions kept on RAG that needed the
-agent are where the partial answers are. The asymmetry says a routing bias toward
-the agent buys quality at a predictable cost in latency and tokens.
+Three things worth reading off that table rather than around it.
 
-This run predates the current repository layout. Regenerate it before drawing
-conclusions about the code as it stands today.
+**More citations and a higher share of them verified** — 141 against 116, at 94%
+against 91%. The eight that failed verification sit on five questions and are
+paraphrases rather than inventions, which is the check doing its job.
+
+**Two answers came back with no citations at all**, down from four. The system
+abstains more readily than it fabricates, which is the failure mode to prefer,
+but it is still a failure mode.
+
+**Routing is flat at 30/40, and the composition got worse where it costs.** The
+misses split 3 over-triggering (RAG expected, agent taken) against 7
+under-triggering. Over-triggering is cheap: those answers still come back
+complete, just slower. Under-triggering is where the partial answers and the
+48-second worst case live. The asymmetry says the same thing it said in v4 — a
+routing bias toward the agent would buy quality at a predictable cost — and it
+has not been acted on yet.
 
 ## Using it on your own corpus
 

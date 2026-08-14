@@ -31,7 +31,7 @@ comes after it.
   as much as semantic similarity in technical corpora.
 - **Verified quotes.** The model must copy the sentence it is relying on. The
   backend checks that sentence really appears in the chunk it cited, and marks
-  the ones that do. In the last run, 105 of 116 quotes checked out.
+  the ones that do. In the last run, 133 of 141 quotes checked out.
 - **Measured, not demoed.** 40 scenarios with reference answers, expected
   citations and expected routing, replayed through the same HTTP endpoint the
   browser uses. [The numbers are published](docs/evaluation.md).
@@ -89,11 +89,11 @@ The last published run, 40 scenarios against the demo corpus:
 
 | | |
 |---|---|
-| Quotes verified | 105 / 116 (91%) |
-| Expected citations satisfied | 34 / 38 |
+| Quotes verified | 133 / 141 (94%) |
+| Expected citations satisfied | 36 / 38 |
 | Routing matched expectation | 30 / 40 |
-| Latency | 5.7 s median, 37.1 s max |
-| Cost | ~$1.26 for the run |
+| Latency | 5.1 s median, 48.0 s max |
+| Tokens | 1.27 M in, 36 k out — roughly a dollar |
 
 [What the numbers mean, and how to run it yourself](docs/evaluation.md).
 
@@ -108,7 +108,7 @@ Two claims worth stating precisely:
 - **"Verified" means the quote is really in the cited passage** — not that the
   passage proves the claim. It catches invented quotes, not faulty reasoning.
 - **Not every sentence gets a citation.** The system is built to answer from the
-  sources or abstain, and it mostly does; in the last run four answers came back
+  sources or abstain, and it mostly does; in the last run two answers came back
   with no citations at all.
 
 DOCX files are converted in the browser for display, so what you see is a
