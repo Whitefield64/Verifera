@@ -1,12 +1,11 @@
 <p align="center">
-  <img src="docs/images/verifera-logo.webp" alt="Verifera" width="120">
+  <img src="docs/images/verifera-logo.png" alt="Verifera" width="200">
 </p>
-
 <h1 align="center">Verifera</h1>
 
 <p align="center">
-  Ask questions about your documents and get answers you can check —
-  every claim carries a quote, and every quote opens the original at the exact passage.
+  <b>A verifiable document agent for your knowledge base.</b><br>
+  Every claim carries a quote, and every quote opens the original at the exact passage.
 </p>
 
 <p align="center">
@@ -20,25 +19,55 @@
 
 ## What it does differently
 
-Most "chat with your PDF" projects stop at an answer. The work here is in what
-comes after it.
+At the core of the engine is a ReAct agent, not a retrieval pipeline with a chat
+window on top. Adding tools extends it past question answering.
 
+- **Navigation, not just retrieval.** Simple lookups take the classic RAG route,
+  which is faster and sufficient. Anything that spans documents, reads a table or
+  follows a cross-reference goes to the agent, which works the corpus the way a
+  person would: scan the index, open a document, read the section, search again.
 - **Stable provenance.** Every chunk gets an id derived from its own text, plus
   the page and bounding box it came from. Re-parse the document and the ids come
-  back identical — so a citation keeps pointing at the same passage.
-- **Hybrid retrieval.** Vector search and Postgres full-text, fused with
-  reciprocal rank fusion. Exact terms — an article number, a product code — matter
-  as much as semantic similarity in technical corpora.
+  back identical, so a citation keeps pointing at the same passage.
 - **Verified quotes.** The model must copy the sentence it is relying on. The
-  backend checks that sentence really appears in the chunk it cited, and marks
-  the ones that do. In the last run, 133 of 141 quotes checked out.
-- **Measured, not demoed.** 40 scenarios with reference answers, expected
-  citations and expected routing, replayed through the same HTTP endpoint the
-  browser uses. [The numbers are published](docs/evaluation.md).
+  backend checks that the sentence really appears in the chunk it cited, and
+  marks the ones that do.
+
+## How it works
+
+![Ingestion, storage and the two query paths](docs/diagrams/architecture.png)
+
+Classic RAG is fast but shallow; an agent left alone with a search tool is slow
+and expensive. Verifera runs both behind a single citation contract.
+
+**Ingestion.** Documents enter through `data/raw/` and are parsed with their
+layout preserved: headings, tables, and for PDFs the page and bounding box of
+every element. They are then chunked, embedded and summarized. The result is
+stored three ways: chunks and vectors in Postgres, the original file untouched
+for the viewer, and a workspace materialized on disk, one directory per document
+holding its summary, its tables, and its text split into readable sections with
+chunk ids inlined. The workspace is what makes the agent path possible: the
+corpus becomes something to navigate by reading rather than a bag of vectors.
+
+**Query.** A lookup whose answer sits in one passage takes the RAG path: hybrid
+search, then an answer from the retrieved chunks. A question that needs several
+documents, a table or a cross-reference takes the agent path, which works through
+the workspace with three tools (search, document metadata, read a section). Both
+paths end at the same citation contract: every claim carries a chunk id and a
+quote, and the backend drops whatever it cannot verify against the text the model
+was actually shown.
+
+**Example domain.** The engine is domain agnostic. Development and evaluation
+used the EU AI Act together with fifteen related acts and frameworks, and a
+benchmark of 40 scenarios with reference answers and expected citations, against
+which chunking, routing and prompts were tuned. The
+[published results](docs/evaluation.md) refer to that corpus.
+
+[The architecture guide](docs/architecture.md) covers all of this in detail.
 
 ## Quickstart
 
-You need Docker and an OpenAI API key. Both paths below cost money — embeddings
+Requires Docker and an OpenAI API key. Both paths below cost money: embeddings
 for every chunk, and one summary per document.
 
 ```bash
@@ -46,77 +75,35 @@ git clone https://github.com/<you>/verifera && cd verifera
 cp .env.example .env      # then put your key in OPENAI_API_KEY
 ```
 
-**Your own documents** — copy PDFs, HTML or DOCX files into `data/raw/`, then:
+**Demo corpus.** The EU AI Act documents, their configuration, and the setup the
+published benchmark was run on:
 
 ```bash
 make up          # Postgres, the API and the UI
-make ingest      # data/raw/ → a corpus the assistant can answer from
-```
-
-**The demo corpus** — the EU AI Act and fourteen acts and frameworks around it,
-the corpus the published benchmark was measured on:
-
-```bash
-make up
 make example     # downloads the documents, installs the demo config, ingests
 ```
 
-Either way the UI is on <http://localhost:3000>. Ask it something.
+**Your own documents.** Copy PDF, HTML or DOCX files into `data/raw/`, named the
+way a reader should see them under a citation, then:
+
+```bash
+make up
+make ingest      # turns data/raw/ into a corpus the assistant can answer from
+```
+
+Either way, the UI is on <http://localhost:3000>.
 
 `data/raw/` is the only way documents get in. There is no other input, no
-connector and no crawler — `make example` is just a download script that puts
-files there, so that a corpus of public legal texts does not have to live in this
+connector and no crawler; `make example` is a download script that puts files
+there, so that a corpus of public legal texts does not have to live in this
 repository.
 
-To change how the assistant introduces itself, write `config/identity.md`.
-That is the one file that is genuinely about *your* documents;
-[the setup guide](docs/setup.md) covers it and the two other optional files.
-
-## How it answers
-
-![Ingestion, storage and the two query paths](docs/diagrams/architecture.png)
-
-A question is condensed against the conversation, then routed. Simple lookups
-take the RAG path — hybrid search, then an answer from the retrieved chunks. A
-question that needs several documents, a table or a cross-reference takes the
-agent path, where the model navigates a filesystem projection of the corpus with
-three tools until it can answer. Both paths end at the same citation contract.
-[The architecture guide](docs/architecture.md) walks through it.
-
-## Measured
-
-The last published run, 40 scenarios against the demo corpus:
-
-| | |
-|---|---|
-| Quotes verified | 133 / 141 (94%) |
-| Expected citations satisfied | 36 / 38 |
-| Routing matched expectation | 30 / 40 |
-| Latency | 5.1 s median, 48.0 s max |
-| Tokens | 1.27 M in, 36 k out — roughly a dollar |
-
-[What the numbers mean, and how to run it yourself](docs/evaluation.md).
-
-## What it is not
-
-Verifera is a local-first reference application, not a hosted product. It has no
-authentication, no rate limiting and no isolation between users. Do not put the
-API on the public internet without putting those in front of it.
-
-Two claims worth stating precisely:
-
-- **"Verified" means the quote is really in the cited passage** — not that the
-  passage proves the claim. It catches invented quotes, not faulty reasoning.
-- **Not every sentence gets a citation.** The system is built to answer from the
-  sources or abstain, and it mostly does; in the last run two answers came back
-  with no citations at all.
-
-DOCX files are converted in the browser for display, so what you see is a
-faithful rendering rather than the original bytes. PDF and HTML are shown as they
-are.
+On a new corpus the one file worth writing is `config/identity.md`: a few lines
+of prose describing what the documents are and who asks about them.
+[The setup guide](docs/setup.md) covers it and the two other optional files.
 
 ## License
 
 [MIT](LICENSE). The documents `make example` downloads are not redistributed
-here — they are fetched from their publishers, and `example/sources.txt` records
+here. They are fetched from their publishers, and `example/sources.txt` records
 the reuse terms of each one.

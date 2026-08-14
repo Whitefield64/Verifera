@@ -11,12 +11,7 @@ page number, a bounding box, a quote — is decided in the first stage.
 `data/raw/` is the inbox and the only input. `make ingest` drains it, one file at
 a time, and a document that fails does not stop the rest.
 
-**Parse.** [Docling](https://github.com/docling-project/docling) reads PDF, HTML
-and DOCX into one structured document with layout preserved: headings, tables,
-and for PDFs the page and bounding box of every element. That geometry is what
-later lets the UI open the original and highlight the passage, so it is worth the
-heavy dependency. HTML gets a cleaning pass first, and if the markup defeats
-Docling the text is re-extracted as a flat projection rather than lost.
+**Parse.** [Docling](https://github.com/docling-project/docling) reads PDF, HTML and DOCX into one structured document with layout preserved: headings, tables, and for PDFs the page and bounding box of every element. That geometry is what later lets the UI open the original and highlight the passage, so it is worth the heavy dependency. HTML gets a cleaning pass first, and if the markup defeats Docling the text is re-extracted as a flat projection rather than lost.
 
 **Chunk.** Text is grouped under its headings, split at a token budget, and
 tables are kept whole. Each chunk gets an id derived from its own content:
@@ -89,9 +84,7 @@ It reasons, reads, and reads again, under a tool budget. Past a soft cap the
 tools start asking it to conclude; past a hard cap the run is stopped and the
 question falls back to the RAG path rather than failing.
 
-Both paths are a [LangGraph](https://langchain-ai.github.io/langgraph/) state
-graph with real branching, retries and fallbacks —
-[`app/graph.py`](../engine/backend/app/graph.py).
+Both paths are a [LangGraph](https://github.com/langchain-ai/langgraph) state graph with real branching, retries and fallbacks — [`app/graph.py`](../engine/backend/app/graph.py).
 
 ## The citation contract
 
