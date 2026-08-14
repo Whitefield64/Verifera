@@ -30,7 +30,7 @@ htmlcov/
 # JavaScript / TypeScript
 node_modules/
 .next/
-frontend/public/pdf.worker.min.mjs
+engine/frontend/public/pdf.worker.min.mjs
 dist/
 build/
 coverage/
@@ -43,27 +43,30 @@ tmp/
 temp/
 .playwright-mcp/
 
-# AI coding tools (local-only configuration)
+# AI coding tools (local-only configuration). AGENTS.md is the opposite: it is
+# written for whoever clones this, and is tracked.
 .claude/settings.local.json
 .claude/**/.venv/
 .codex/
 .agents/
-AGENTS.md
 CLAUDE.md
 .claude/
 
-# Personal working notes: never published.
+# Personal working notes and reviews: never published.
 docs/interno/
+PROJECT_REVIEW.md
 
-# Benchmark outputs. Keep experiment transcripts local until a final run is
-# selected for publication.
-benchmark/results/*.json
-benchmark/results/*.jsonl
-benchmark/results/query-embeddings-cache.json
-!benchmark/results/.gitkeep
+# Local assistant configuration. `make example` copies the demo config in here,
+# and your own identity.md lives here too. The engine has a default for every
+# one of these files, so an empty config/ is a working system.
+config/*
+!config/.gitkeep
 
-# Corpus artifacts — all regenerable with `python -m corpus sync` + `python -m ingestion ingest`.
-# data/manifest.json IS tracked: it is the corpus map, and the checksums make ingestion auditable.
-data/raw/
-data/objects/
-data/workspace/
+# Everything under data/ is regenerable: documents are re-fetched or re-copied
+# into data/raw and `make ingest` rebuilds the rest. The directories themselves
+# are tracked so a fresh clone has somewhere to put documents.
+data/raw/*
+data/objects/*
+data/workspace/*
+data/eval-runs/*
+!data/*/.gitkeep

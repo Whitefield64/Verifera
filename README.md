@@ -1,189 +1,122 @@
-# Document Assistant
+<p align="center">
+  <img src="docs/images/verifera-logo.webp" alt="Verifera" width="120">
+</p>
 
-Grounded question answering over a document corpus, where **every claim points
-back to the exact passage it came from** — the page and bounding box in the
-original PDF, or the highlighted span in the original HTML.
+<h1 align="center">Verifera</h1>
 
-A reference implementation, not a library: clone it, swap the domain pack,
-point it at your documents. The demo corpus is EU AI regulation.
+<p align="center">
+  Ask questions about your documents and get answers you can check —
+  every claim carries a quote, and every quote opens the original at the exact passage.
+</p>
 
-![Answer with a numbered inline citation next to the Official Journal PDF, with the cited recital highlighted](docs/images/citation-highlight.png)
+<p align="center">
+  <a href="#quickstart">Quickstart</a> ·
+  <a href="docs/setup.md">Setup</a> ·
+  <a href="docs/architecture.md">Architecture</a> ·
+  <a href="docs/evaluation.md">Evaluation</a>
+</p>
 
-*The footnote number sits on the sentence it supports. Clicking it — or its entry
-in the reference list — opens the original Official Journal PDF and highlights
-the exact passage the claim came from. Green passed quote verification against
-the stored source text; amber did not.*
+![An answer with numbered citations next to the source PDF, highlighted at the cited passage](docs/images/citation-highlight.png)
 
-![The end of a long comparison answer, with its numbered reference list](docs/images/agent-answer.png)
+## What it does differently
 
-*The same contract on a long answer. Numbers are assigned in the order the
-reader meets them, and the reference list is ordered to match — so a claim near
-the end still resolves to one entry rather than to a list of file names.*
+Most "chat with your PDF" projects stop at an answer. The work here is in what
+comes after it.
 
-## Why this exists
-
-Most RAG demos answer with a footnote listing which document they used. That is
-not verification, it is a citation-shaped object. Three things are different
-here:
-
-**The citation contract is load-bearing.** Every answer emits
-`{doc_id, title, marker, page, bbox, chunk_text, quote}`, and each quote is then
-checked against the stored chunk text. Citations that fail come back
-`verified: false` and render differently. A model that paraphrases its own
-source gets caught.
-
-**Claims are cited where they are made.** The model marks each sentence with the
-chunk it rests on; the backend turns those marks into footnote numbers, in order
-of first appearance, and orders the reference list to match. In a long answer —
-an obligation matrix, a penalty table — every row carries the number of the
-provision it came from, instead of a train of file names at the end that fits no
-particular sentence.
-
-**The viewer shows the original artifact, not a reconstruction.** PDFs are drawn
-by PDF.js with overlays on the stored bounding boxes; HTML and DOCX originals
-are served exactly as captured, inside a sandboxed iframe that cannot run
-scripts, and highlighted through the CSS Custom Highlight API.
-
-**Two paths, and the routing is measured.** Simple lookups go to hybrid
-retrieval. Questions that need navigation — comparing regimes, following a
-cross-reference into another act, reading an annex — go to an agent that opens
-documents. The evaluation set records which path each question *should* get, so
-the router is a number rather than an opinion.
-
-That third one is not theoretical. Asked for the maximum fine for a prohibited
-AI practice, the retrieval path found Article 100 — the same conduct, but for
-Union institutions — and answered EUR 1 500 000. The agent path opened Article
-99 and answered EUR 35 000 000 or 7% of worldwide turnover. Both answers cited
-faithfully. The difference was in what reached the model.
-
-## How it works
-
-```
-ingest  → parse (Docling: text, page, bounding box)
-        → tables extracted as their own artifacts
-        → chunk (content-derived ids, stable across re-ingestion)
-        → embed → pgvector
-        → materialize a filesystem workspace (sections, tables, index)
-        → publication gate: queryable only when the whole pipeline succeeded
-
-query   → condense follow-ups into a standalone question
-        → route
-        → RAG:   hybrid search (vector + full-text, fused with RRF) → grounded answer
-          agent: search, open sections, follow cross-references, then answer
-        → verify every quote against its chunk
-        → stream tokens, activity and citations over SSE
-```
-
-Orchestration is one compiled LangGraph `StateGraph`
-([diagram](docs/graph.mmd)). LangGraph owns orchestration and nothing else:
-retrieval, citation verification, chunking and the workspace are plain Python.
-Storage is split three ways — Postgres for chunks and provenance, object storage
-for untouched originals, and a regenerable filesystem workspace the agent
-navigates.
-
-More in [docs/architecture.md](docs/architecture.md).
+- **Stable provenance.** Every chunk gets an id derived from its own text, plus
+  the page and bounding box it came from. Re-parse the document and the ids come
+  back identical — so a citation keeps pointing at the same passage.
+- **Hybrid retrieval.** Vector search and Postgres full-text, fused with
+  reciprocal rank fusion. Exact terms — an article number, a product code — matter
+  as much as semantic similarity in technical corpora.
+- **Verified quotes.** The model must copy the sentence it is relying on. The
+  backend checks that sentence really appears in the chunk it cited, and marks
+  the ones that do. In the last run, 105 of 116 quotes checked out.
+- **Measured, not demoed.** 40 scenarios with reference answers, expected
+  citations and expected routing, replayed through the same HTTP endpoint the
+  browser uses. [The numbers are published](docs/evaluation.md).
 
 ## Quickstart
 
-```bash
-cp .env.example .env                                       # add OPENAI_API_KEY
-docker compose up -d                                       # Postgres + pgvector, API on :8000
-
-docker compose run --rm ingest python -m corpus sync       # fetch the demo corpus
-docker compose run --rm ingest python -m ingestion ingest   # parse, chunk, embed, publish
-
-cd frontend && npm install && npm run dev                  # UI on :3000
-```
-
-Parsing runs in a separate image on purpose: it pulls in torch and OpenCV, which
-the request path never imports. Keeping them apart is the difference between a
-~200 MB API image and a ~2 GB one.
-
-Later, when the regulation moves:
+You need Docker and an OpenAI API key. Both paths below cost money — embeddings
+for every chunk, and one summary per document.
 
 ```bash
-docker compose run --rm ingest python -m corpus sync --check   # what changed upstream
+git clone https://github.com/<you>/verifera && cd verifera
+cp .env.example .env      # then put your key in OPENAI_API_KEY
 ```
 
-## Domain packs
-
-Nothing under `backend/app/` contains a domain string — not a prompt, not a
-routing rule, not the title in the browser tab. All of it is data:
-
-```
-packs/eu-ai-act/
-  pack.yaml         identity, UI copy, fixed replies, evaluation topics
-  prompts/          answer, condense, router, summarize, agent
-  router.yaml       regex signals that bypass the classifier
-  sources.yaml      where the corpus comes from, and under what terms
-  benchmark.jsonl   evaluation scenarios
-```
-
-Point `PACK_DIR` elsewhere and the system retargets, UI included — it reads its
-copy from `GET /api/pack`. See [docs/domain-packs.md](docs/domain-packs.md).
-
-## Evaluation
-
-`benchmark/run.py` replays scenarios through the same HTTP endpoint the web app
-uses, so what gets measured is what ships. It scores nothing and calls no second
-model: it saves transcripts, and a reviewer reads them against the rubric and
-the sources. An LLM judge would add a second thing that can be wrong in the one
-place that has to be trustworthy.
+**Your own documents** — copy PDFs, HTML or DOCX files into `data/raw/`, then:
 
 ```bash
-python3 benchmark/run.py --validate-only
-python3 benchmark/run.py --backend-url http://localhost:8000/api/chat
-python3 benchmark/report.py benchmark/results/<file>.json
+make up          # Postgres, the API and the UI
+make ingest      # data/raw/ → a corpus the assistant can answer from
 ```
 
-First measured run — 40 scenarios, 16 documents, 2026-08-09:
+**The demo corpus** — the EU AI Act and fourteen acts and frameworks around it,
+the corpus the published benchmark was measured on:
+
+```bash
+make up
+make example     # downloads the documents, installs the demo config, ingests
+```
+
+Either way the UI is on <http://localhost:3000>. Ask it something.
+
+`data/raw/` is the only way documents get in. There is no other input, no
+connector and no crawler — `make example` is just a download script that puts
+files there, so that a corpus of public legal texts does not have to live in this
+repository.
+
+To change how the assistant introduces itself, write `config/identity.md`.
+That is the one file that is genuinely about *your* documents;
+[the setup guide](docs/setup.md) covers it and the two other optional files.
+
+## How it answers
+
+![Ingestion, storage and the two query paths](docs/diagrams/architecture.png)
+
+A question is condensed against the conversation, then routed. Simple lookups
+take the RAG path — hybrid search, then an answer from the retrieved chunks. A
+question that needs several documents, a table or a cross-reference takes the
+agent path, where the model navigates a filesystem projection of the corpus with
+three tools until it can answer. Both paths end at the same citation contract.
+[The architecture guide](docs/architecture.md) walks through it.
+
+## Measured
+
+The last published run, 40 scenarios against the demo corpus:
 
 | | |
 |---|---|
-| Content | 31 complete · 5 partial · 4 wrong |
-| Quotes verified against source | 204 / 216 (94%) |
-| `must_cite` satisfied | 36 / 38 |
-| Routing vs `expected_path` | 30 / 40 |
-| Latency | median 8.1 s, max 81.7 s |
+| Quotes verified | 105 / 116 (91%) |
+| Expected citations satisfied | 34 / 38 |
+| Routing matched expectation | 30 / 40 |
+| Latency | 5.7 s median, 37.1 s max |
+| Cost | ~$1.26 for the run |
 
-Split by the path each question actually took, the agent path answered **20 of
-20 completely**, and every failure in the run is on the retrieval path — and
-every one of those is a *retrieval* failure, not a generation failure: the fact
-is in the corpus and the answer was faithful to the extracts it was given.
-Nothing has been tuned in response yet; these are baseline numbers with the
-diagnosis written down. Full review in
-[docs/evaluation.md](docs/evaluation.md).
+[What the numbers mean, and how to run it yourself](docs/evaluation.md).
 
-Scenarios are never edited to make transcripts look better. A benchmark that
-moves toward the system it measures is decoration.
+## What it is not
 
-## The demo corpus
+Verifera is a local-first reference application, not a hosted product. It has no
+authentication, no rate limiting and no isolation between users. Do not put the
+API on the public internet without putting those in front of it.
 
-Public EU AI regulation: the AI Act in English and Italian and as the Official
-Journal PDF, the acts it cross-references (GDPR, Data Act, DSA, Machinery
-Regulation, Product Liability Directive, NIS2, Cyber Resilience Act), and NIST's
-AI risk frameworks as a non-EU contrast.
+Two claims worth stating precisely:
 
-Documents are **not redistributed here**. `python -m corpus sync` fetches them
-from their publishers, and `packs/eu-ai-act/sources.yaml` records the reuse
-terms of each — EUR-Lex under Decision 2011/833/EU, NIST as US government work.
-ISO standards are deliberately excluded: they are not freely redistributable.
+- **"Verified" means the quote is really in the cited passage** — not that the
+  passage proves the claim. It catches invented quotes, not faulty reasoning.
+- **Not every sentence gets a citation.** The system is built to answer from the
+  sources or abstain, and it mostly does; in the last run four answers came back
+  with no citations at all.
 
-**This is a technical demonstration, not legal advice.** The corpus is a dated
-snapshot; regulation changes, which is exactly why the fetcher exists.
-
-## Stack
-
-Python · FastAPI · Postgres + pgvector · Docling · LangGraph · Next.js +
-react-pdf · OpenAI for embeddings and generation, configurable per task.
-
-## Not here yet
-
-Persisted sessions and memory, retrieval-level permissions and multi-tenancy,
-WhatsApp, CRM integration, audio. All additive. Multi-turn conversation works
-today by sending history with the request.
+DOCX files are converted in the browser for display, so what you see is a
+faithful rendering rather than the original bytes. PDF and HTML are shown as they
+are.
 
 ## License
 
-MIT for the code. The demo corpus keeps the terms of its sources — see
-[LICENSE](LICENSE).
+[MIT](LICENSE). The documents `make example` downloads are not redistributed
+here — they are fetched from their publishers, and `example/sources.txt` records
+the reuse terms of each one.

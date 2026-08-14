@@ -29,4 +29,4 @@ This license covers the source code only. The demo corpus fetched by
 texts, Commission guidelines, standards-body publications) that are NOT
 distributed with this repository and are NOT covered by this license. Each
 source carries its own reuse terms, recorded in the `license` field of
-`packs/<pack>/sources.yaml`. See docs/ for details.
+`example/sources.yaml`. See docs/ for details.

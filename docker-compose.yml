@@ -17,45 +17,55 @@ services:
 
   api:
     build:
-      context: backend
+      context: engine/backend
       target: api
     env_file: .env
     environment:
       DATABASE_URL: postgresql://postgres:postgres@db:5432/knowledge_base
-      PACK_DIR: /packs/eu-ai-act
+      CONFIG_DIR: /config
       OBJECTS_DIR: /data/objects
       WORKSPACE_DIR: /data/workspace
-      MANIFEST_PATH: /data/manifest.json
     ports:
       - "8000:8000"
     volumes:
-      - ./packs:/packs:ro
-      - ./data/objects:/data/objects
-      - ./data/workspace:/data/workspace
-      - ./data/manifest.json:/data/manifest.json:ro
+      # identity.md, assistant.yaml, routing.yaml — all optional, all cached at
+      # startup, so editing one means `docker compose restart api`.
+      - ./config:/config:ro
+      - ./data:/data:ro
     depends_on:
       db:
         condition: service_healthy
 
+  frontend:
+    build:
+      context: engine/frontend
+      args:
+        # Next inlines NEXT_PUBLIC_* at build time, so serving the UI from
+        # another host means rebuilding with this set, not just restarting.
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+
   # Document parsing, on demand rather than always-on: this image carries torch
-  # and OpenCV, which the API does not need.
-  #   docker compose run --rm ingest python -m corpus sync
-  #   docker compose run --rm ingest python -m ingestion ingest
+  # and OpenCV, which the API does not need, and a run costs money in embeddings
+  # and summaries.
+  #   make ingest     turn everything in data/raw/ into a queryable corpus
   ingest:
     profiles: ["ingest"]
     build:
-      context: backend
+      context: engine/backend
       target: ingest
     env_file: .env
     environment:
       DATABASE_URL: postgresql://postgres:postgres@db:5432/knowledge_base
-      PACK_DIR: /packs/eu-ai-act
+      CONFIG_DIR: /config
       RAW_DIR: /data/raw
       OBJECTS_DIR: /data/objects
       WORKSPACE_DIR: /data/workspace
-      MANIFEST_PATH: /data/manifest.json
     volumes:
-      - ./packs:/packs:ro
+      - ./config:/config:ro
       - ./data:/data
       - model-cache:/root/.cache
       - easyocr-cache:/root/.EasyOCR

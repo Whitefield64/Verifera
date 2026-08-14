@@ -1,0 +1,9 @@
+# Grading rules for benchmark.jsonl, read by engine/benchmark/report.py.
+#
+# The same instrument in another format or language. Citing any member of a
+# group satisfies a must_cite requirement for any other, because they are one
+# document — but they are separate entries in the corpus, with their own chunks,
+# and the retriever has to be able to reach each of them.
+document_variants:
+  ai-act-en: [ai-act-en-pdf, ai-act-it]
+  gdpr-en: [gdpr-it]

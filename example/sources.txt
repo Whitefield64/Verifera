@@ -1,0 +1,54 @@
+# The corpus behind the published benchmark, as <filename> <url> [language].
+#
+# These documents are NOT redistributed in this repository: fetch.py downloads
+# them from the publisher into data/raw/, where they become ordinary input like
+# any file you would copy there yourself.
+#
+# The EU acts are fetched from Cellar (publications.europa.eu), the official
+# machine-readable face of EUR-Lex. The eur-lex.europa.eu pages a human clicks
+# now sit behind a JavaScript bot challenge and answer a script with an empty
+# 202; Cellar is the documented way in and serves the same text. It negotiates
+# format from the Accept header, which fetch.py derives from the extension
+# below, and language from the third column (default "eng").
+#
+# Reuse terms of what is listed here:
+#   EUR-Lex   Commission Decision 2011/833/EU — free reuse with acknowledgement
+#   NIST      work of the U.S. government, public domain in the United States
+#
+# Deliberately excluded: ISO/IEC 42001 and other ISO standards are not freely
+# redistributable and cannot be fetched by a public script.
+#
+# The filename becomes the document's id and the name shown under a citation,
+# so it is chosen to read well there.
+
+# ── The instrument the corpus is about ──────────────────────────────────────
+# Regulation (EU) 2024/1689 — Artificial Intelligence Act. Full text: 113
+# articles and 13 annexes, including the Annex III high-risk list. The PDF is
+# the Official Journal layout, so citations resolve to a page and a bounding
+# box; the Italian version exercises cross-language retrieval.
+ai-act-en.html              http://publications.europa.eu/resource/celex/32024R1689  eng
+ai-act-en-pdf.pdf           http://publications.europa.eu/resource/celex/32024R1689  eng
+ai-act-it.html              http://publications.europa.eu/resource/celex/32024R1689  ita
+
+# ── Acts the AI Act defers to or sits alongside ─────────────────────────────
+# GDPR: the AI Act repeatedly defers to it, the classic cross-reference case.
+gdpr-en.html                http://publications.europa.eu/resource/celex/32016R0679  eng
+gdpr-it.html                http://publications.europa.eu/resource/celex/32016R0679  ita
+dsa.html                    http://publications.europa.eu/resource/celex/32022R2065  eng
+data-act.html               http://publications.europa.eu/resource/celex/32023R2854  eng
+data-governance-act.html    http://publications.europa.eu/resource/celex/32022R0868  eng
+# Listed in AI Act Annex I: high-risk classification routes through it.
+machinery-regulation.html   http://publications.europa.eu/resource/celex/32023R1230  eng
+# Directive (EU) 2024/2853: covers software and AI systems as products.
+# Cellar holds no PDF datastream for it, so this one is XHTML.
+product-liability-directive.html  http://publications.europa.eu/resource/celex/32024L2853  eng
+nis2-directive.html         http://publications.europa.eu/resource/celex/32022L2555  eng
+cybersecurity-act.pdf       http://publications.europa.eu/resource/celex/32019R0881  eng
+cyber-resilience-act.html   http://publications.europa.eu/resource/celex/32024R2847  eng
+
+# ── Non-EU frameworks, for contrast ─────────────────────────────────────────
+# Voluntary frameworks: useful contrast with the AI Act's binding duties.
+# Served as plain files, so the negotiation headers are simply ignored.
+nist-ai-rmf.pdf             https://nvlpubs.nist.gov/nistpubs/ai/NIST.AI.100-1.pdf
+nist-genai-profile.pdf      https://nvlpubs.nist.gov/nistpubs/ai/NIST.AI.600-1.pdf
+nist-ssdf-ai.pdf            https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-218A.pdf
